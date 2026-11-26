@@ -8,6 +8,7 @@ from langchain_core.messages import AnyMessage, HumanMessage, AIMessage
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 from langgraph.checkpoint.memory import MemorySaver
+from model_client import extract_account_request, model
 
 
 class AccountOpeningState(TypedDict, total=False):
@@ -37,22 +38,37 @@ def extract_value(pattern: str, text: str, default: str = "") -> str:
     return match.group(1).strip() if match else default
 
 
-def understand_request(state: AccountOpeningState) -> dict[str, Any]:
+async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
     text = latest_user_text(state.get("messages", []))
-    client_id = extract_value(r"\bclient\s+([A-Z0-9-]+)", text, state.get("client_id", "C12345"))
-    account_type = "BROKERAGE" if "brokerage" in text.lower() else state.get("account_type", "BROKERAGE")
-    ownership = "JOINT" if "joint" in text.lower() else state.get("ownership", "INDIVIDUAL")
-    currency = extract_value(r"\b(USD|EUR|GBP|SGD|HKD|AED)\b", text, state.get("base_currency", "USD")).upper()
+    extracted: dict[str, Any] = {}
+    if model is not None and text:
+        extracted = await extract_account_request(text)
 
-    # Accept a simple natural-language form response for the POC.
-    owner = extract_value(r"(?:joint owner|co-owner)(?: name)?\s*(?:is|:)\s*([A-Za-z][A-Za-z .'-]+?)(?:,|;|$)", text, state.get("joint_owner_name", ""))
-    tax = extract_value(r"(?:tax residency|residency)\s*(?:is|:)\s*([A-Za-z][A-Za-z .'-]+?)(?:,|;|$)", text, state.get("joint_owner_tax_residency", ""))
-
+    client_id = extracted.get("client_id") or extract_value(
+        r"\bclient\s+([A-Z0-9-]+)", text, state.get("client_id", "C12345")
+    )
+    account_type = extracted.get("account_type") or (
+        "BROKERAGE" if "brokerage" in text.lower() else state.get("account_type", "BROKERAGE")
+    )
+    ownership = extracted.get("ownership") or (
+        "JOINT" if "joint" in text.lower() else state.get("ownership", "INDIVIDUAL")
+    )
+    currency = extracted.get("base_currency") or extract_value(
+        r"\b(USD|EUR|GBP|SGD|HKD|AED)\b", text, state.get("base_currency", "USD")
+    )
+    owner = extracted.get("joint_owner_name") or extract_value(
+        r"(?:joint owner|co-owner)(?: name)?\s*(?:is|:)\s*([A-Za-z][A-Za-z .'-]+?)(?:,|;|$)",
+        text, state.get("joint_owner_name", "")
+    )
+    tax = extracted.get("joint_owner_tax_residency") or extract_value(
+        r"(?:tax residency|residency)\s*(?:is|:)\s*([A-Za-z][A-Za-z .'-]+?)(?:,|;|$)",
+        text, state.get("joint_owner_tax_residency", "")
+    )
     return {
         "client_id": client_id,
-        "account_type": account_type,
-        "ownership": ownership,
-        "base_currency": currency,
+        "account_type": account_type.upper(),
+        "ownership": ownership.upper(),
+        "base_currency": currency.upper(),
         "joint_owner_name": owner or state.get("joint_owner_name", ""),
         "joint_owner_tax_residency": tax or state.get("joint_owner_tax_residency", ""),
     }
@@ -61,14 +77,13 @@ def understand_request(state: AccountOpeningState) -> dict[str, Any]:
 def retrieve_client(state: AccountOpeningState) -> dict[str, Any]:
     # Replace with an authenticated call to the Java Client Experience API.
     client_id = state.get("client_id", "C12345")
-    mock_profile = {
+    return {"client_profile": {
         "clientId": client_id,
         "displayName": "Alex Morgan",
         "segment": "PRIVATE_BANKING",
         "kycStatus": "VALID",
         "riskProfile": "MODERATE",
-    }
-    return {"client_profile": mock_profile}
+    }}
 
 
 def determine_requirements(state: AccountOpeningState) -> dict[str, Any]:
@@ -100,10 +115,7 @@ def prepare_ui(state: AccountOpeningState) -> dict[str, Any]:
     else:
         ui = {"mode": "SUMMARY", "widgetId": "APPLICATION_SUMMARY", "title": "Application draft ready", "fields": []}
         message = "All required POC fields are present. I can create the account-opening draft."
-    return {
-        "ui": ui,
-        "messages": [AIMessage(content=message)],
-    }
+    return {"ui": ui, "messages": [AIMessage(content=message)]}
 
 
 def create_mock_draft(state: AccountOpeningState) -> dict[str, Any]:
@@ -138,19 +150,15 @@ def build_graph():
     workflow.add_node("determine_requirements", determine_requirements)
     workflow.add_node("prepare_ui", prepare_ui)
     workflow.add_node("create_draft", create_mock_draft)
-
     workflow.add_edge(START, "understand_request")
     workflow.add_edge("understand_request", "retrieve_client")
     workflow.add_edge("retrieve_client", "determine_requirements")
     workflow.add_edge("determine_requirements", "prepare_ui")
     workflow.add_conditional_edges(
-        "prepare_ui",
-        route_after_requirements,
+        "prepare_ui", route_after_requirements,
         {"wait_for_input": END, "create_draft": "create_draft"},
     )
     workflow.add_edge("create_draft", END)
-
-    # Local-only checkpointing. Use a durable checkpointer for shared environments.
     return workflow.compile(checkpointer=MemorySaver())
 
 
