@@ -1,0 +1,39 @@
+<section class="agent-shell">
+  <h2>Account Opening Agent – POC</h2>
+
+  <label for="request">Tell the agent what you want to open</label>
+  <textarea id="request" [ngModel]="prompt()" (ngModelChange)="prompt.set($event)" rows="3"></textarea>
+  <button type="button" (click)="start()" [disabled]="busy()">Start account opening</button>
+
+  <p *ngIf="busy()">Agent is working…</p>
+  <p class="error" *ngIf="error()">{{ error() }}</p>
+
+  <section *ngFor="let message of assistantText()">
+    <p>{{ message }}</p>
+  </section>
+
+  <section *ngIf="uiState()?.widgetId === 'JOINT_OWNER_FORM'" class="form-card">
+    <h3>{{ uiState()?.title }}</h3>
+    <p>{{ uiState()?.description }}</p>
+
+    <label for="ownerName">Joint owner full name</label>
+    <input id="ownerName" [ngModel]="ownerName()" (ngModelChange)="ownerName.set($event)" />
+
+    <label for="taxResidency">Joint owner tax residency</label>
+    <input id="taxResidency" [ngModel]="taxResidency()" (ngModelChange)="taxResidency.set($event)" />
+
+    <button type="button" (click)="submitJointOwner()" [disabled]="busy() || !ownerName() || !taxResidency()">
+      Submit joint owner details
+    </button>
+  </section>
+
+  <section *ngIf="uiState()?.widgetId === 'DRAFT_CONFIRMATION'" class="success-card">
+    <h3>{{ uiState()?.title }}</h3>
+    <p>Mock application draft created. Check the agent response for its application reference.</p>
+  </section>
+
+  <details>
+    <summary>AG-UI event trace</summary>
+    <pre>{{ events() | json }}</pre>
+  </details>
+</section>

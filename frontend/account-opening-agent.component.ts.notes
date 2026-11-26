@@ -1,0 +1,9 @@
+NOTE: The HTML template uses [(ngModel)]="promptValue" as a concise template example.
+Add this property to the component if using that exact binding:
+
+promptValue = this.prompt();
+
+Alternatively replace the textarea with:
+<textarea [ngModel]="prompt()" (ngModelChange)="prompt.set($event)" rows="3"></textarea>
+
+For a production adapter, replace the minimal fetch/SSE parser with the official AG-UI TypeScript client and implement full state-delta handling.
