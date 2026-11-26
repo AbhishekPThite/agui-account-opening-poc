@@ -19,4 +19,21 @@ app.add_middleware(
 async def health():
     return {"status": "ok", "service": "account-opening-agent"}
 
-add_langgraph_fastapi_endpoint(app, graph, "/agent")
+from ag_ui_langgraph import (
+    LangGraphAgent,
+    add_langgraph_fastapi_endpoint,
+)
+
+# graph is your compiled LangGraph workflow
+agui_agent = LangGraphAgent(
+    name="account-opening-agent",
+    graph=graph,
+    description="Wealth account opening assistant",
+    emit_raw_events=False
+)
+
+add_langgraph_fastapi_endpoint(
+    app,
+    agui_agent,
+    path="/agent"
+)
