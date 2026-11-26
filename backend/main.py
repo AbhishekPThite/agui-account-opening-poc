@@ -1,6 +1,10 @@
+import logging
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from ag_ui_langgraph import add_langgraph_fastapi_endpoint
+
+logging.basicConfig(level=logging.INFO)
 
 from graph import graph
 

@@ -1,1 +1,59 @@
-{"$schema":"./node_modules/@angular/cli/lib/config/schema.json","version":1,"newProjectRoot":"projects","projects":{"agui-account-opening-angular":{"projectType":"application","root":"","sourceRoot":"src","prefix":"app","architect":{"build":{"builder":"@angular-devkit/build-angular:application","options":{"outputPath":"dist/agui-account-opening-angular","index":"src/index.html","browser":"src/main.ts","polyfills":["zone.js"],"tsConfig":"tsconfig.app.json","inlineStyleLanguage":"css","assets":[],"styles":["src/styles.css"]},"configurations":{"production":{"outputHashing":"all"},"development":{"optimization":false,"extractLicenses":false,"sourceMap":true}},"defaultConfiguration":"development"}}}}}
+{
+    "$schema": "./node_modules/@angular/cli/lib/config/schema.json",
+    "version": 1,
+    "newProjectRoot": "projects",
+    "projects": {
+        "agui-account-opening-angular": {
+            "projectType": "application",
+            "root": "",
+            "sourceRoot": "src",
+            "prefix": "app",
+            "architect": {
+                "build": {
+                    "builder": "@angular-devkit/build-angular:application",
+                    "options": {
+                        "outputPath": "dist/agui-account-opening-angular",
+                        "index": "src/index.html",
+                        "browser": "src/main.ts",
+                        "polyfills": [
+                            "zone.js"
+                        ],
+                        "tsConfig": "tsconfig.app.json",
+                        "inlineStyleLanguage": "css",
+                        "assets": [],
+                        "styles": [
+                            "src/styles.css"
+                        ]
+                    },
+                    "configurations": {
+                        "production": {
+                            "outputHashing": "all"
+                        },
+                        "development": {
+                            "optimization": false,
+                            "extractLicenses": false,
+                            "sourceMap": true
+                        }
+                    },
+                    "defaultConfiguration": "development"
+                },
+                "serve": {
+                    "builder": "@angular-devkit/build-angular:dev-server",
+                    "options": {
+                        "buildTarget": "agui-account-opening-angular:build",
+                        "proxyConfig": "proxy.conf.json"
+                    },
+                    "configurations": {
+                        "production": {
+                            "buildTarget": "agui-account-opening-angular:build:production"
+                        },
+                        "development": {
+                            "buildTarget": "agui-account-opening-angular:build:development"
+                        }
+                    },
+                    "defaultConfiguration": "development"
+                }
+            }
+        }
+    }
+}
