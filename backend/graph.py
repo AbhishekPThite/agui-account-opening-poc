@@ -11,6 +11,7 @@ from langgraph.graph.message import add_messages
 from checkpointer import checkpointer
 from langgraph.types import interrupt
 from model_client import extract_account_request, model
+from requirements_engine import build_registration_requirements
 
 
 class AccountOpeningState(TypedDict, total=False):
@@ -38,6 +39,7 @@ class AccountOpeningState(TypedDict, total=False):
     profile_assessment: dict[str, Any]
     confirmed_profile_data: dict[str, Any]
     application_data: dict[str, Any]
+    requirements_assessment: dict[str, Any]
 
 
 EDITABLE_FIELDS = {
@@ -275,13 +277,30 @@ def prepare_profile_assessment(state: AccountOpeningState) -> dict[str, Any]:
     ))]}
 
 def determine_requirements(state: AccountOpeningState) -> dict[str, Any]:
+    """Resolve the registration-specific requirement matrix.
+
+    This node classifies requirements only. Completion of primary-owner data and
+    client-profile confirmation is handled by the profile gate; beneficiary and
+    risk-assessment capture are implemented in later journey increments.
+    """
+    registration_type = state.get("ownership", "INDIVIDUAL")
+    requirements = build_registration_requirements(registration_type)
+
     missing: list[str] = []
-    if state.get("ownership") in {"JOINT", "JOINT_TOD"}:
+    joint_requirement = next(
+        item for item in requirements["requirements"]
+        if item["key"] == "JOINT_OWNER_DETAILS"
+    )
+    if joint_requirement["required"]:
         if not state.get("joint_owner_name"):
             missing.append("jointOwnerName")
         if not state.get("joint_owner_tax_residency"):
             missing.append("jointOwnerTaxResidency")
-    return {"missing_fields": missing}
+
+    return {
+        "missing_fields": missing,
+        "requirements_assessment": requirements,
+    }
 
 
 def prepare_ui(state: AccountOpeningState) -> dict[str, Any]:
@@ -333,6 +352,10 @@ def prepare_ui(state: AccountOpeningState) -> dict[str, Any]:
             "jointOwnerName": state.get("joint_owner_name", "") or "—",
             "jointOwnerTaxResidency": state.get("joint_owner_tax_residency", "") or "—",
             "kycStatus": profile.get("kycStatus", "UNKNOWN"),
+            "requirements": "; ".join(
+                f"{item['label']}: {item['status']}"
+                for item in state.get("requirements_assessment", {}).get("requirements", [])
+            ),
             "reviewVersion": revision,
         },
         "approvalRequired": True,
