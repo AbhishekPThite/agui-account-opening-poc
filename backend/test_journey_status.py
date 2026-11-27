@@ -160,8 +160,10 @@ class JourneyStatusTests(unittest.TestCase):
             "account_nickname": "Brokerage 1",
             "ownership": "INDIVIDUAL",
             "risk_assessment": {
+                "investmentObjectives": ["GROWTH"],
                 "investmentTimeHorizon": "5_TO_10_YEARS",
                 "liquidityNeeds": "MEDIUM",
+                "riskTolerance": "MODERATE",
             },
             "beneficiary_data": {},
             "product_features": {},
