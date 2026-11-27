@@ -23,6 +23,7 @@ export interface AgentUI {
   description?: string;
   fields?: AgentUIField[];
   data?: Record<string, unknown>;
+  approvalRequired?: boolean;
 }
 
 export interface AgentWidgetInstance {
