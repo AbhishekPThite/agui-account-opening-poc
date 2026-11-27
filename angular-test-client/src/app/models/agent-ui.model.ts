@@ -2,12 +2,13 @@ export type AgentWidgetId =
   | 'JOINT_OWNER_FORM'
   | 'PROFILE_ASSESSMENT'
   | 'PROFILE_DATA_CAPTURE'
+  | 'BENEFICIARY_CAPTURE'
   | 'APPLICATION_SUMMARY'
   | 'DRAFT_CONFIRMATION'
   | 'INFORMATION_ALERT';
 
 export type AgentUiMode = 'FORM' | 'SUMMARY' | 'COMPLETE' | 'ALERT';
-export type AgentFieldType = 'text' | 'number' | 'select';
+export type AgentFieldType = 'text' | 'number' | 'select' | 'date';
 
 export interface AgentUIField {
   name: string;
