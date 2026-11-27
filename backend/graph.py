@@ -689,11 +689,11 @@ def prepare_risk_assessment(state: AccountOpeningState) -> dict[str, Any]:
         "mode": "FORM",
         "widgetId": "RISK_ASSESSMENT_FORM",
         "title": "Investment risk assessment",
-        "description": "Confirm the existing investment profile and complete the remaining required information. This step records client-provided information; it does not determine suitability or recommend investments.",
+        "description": "Provide the client's investment objectives, time horizon, liquidity needs and risk tolerance. Fields remain blank until selected here or explicitly provided in chat. This step records client-provided information; it does not determine suitability or recommend investments.",
         "fields": fields,
         "data": {"clientId": state.get("client_id", ""), "mandatory": True},
     }
-    return {"ui": ui, "messages": [AIMessage(content="Please confirm the existing investment profile and complete all required risk-assessment fields.")]}
+    return {"ui": ui, "messages": [AIMessage(content="Please provide all required risk-assessment fields. Nothing is prefilled from the existing client profile.")]}
 
 
 def prepare_product_features(state: AccountOpeningState) -> dict[str, Any]:
