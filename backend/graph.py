@@ -418,7 +418,7 @@ def prepare_product_features(state: AccountOpeningState) -> dict[str, Any]:
         fields.append(field)
     title = "Brokerage features" if product_type == "BROKERAGE" else "Credit facility details"
     description = (
-        "Select the trading and cash-management preferences for this brokerage account. These selections are application preferences, not trading authorization."
+        "Capture brokerage account preferences. Detailed option sets and business rules remain with the relevant product and downstream services."
         if product_type == "BROKERAGE"
         else "Provide the requested facility amount, proposed collateral and intended purpose. These are requests only and do not represent credit approval or collateral acceptance."
     )
