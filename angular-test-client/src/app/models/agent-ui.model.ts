@@ -14,6 +14,7 @@ export interface AgentUIField {
   required?: boolean;
   placeholder?: string;
   options?: string[];
+  defaultValue?: string;
 }
 
 export interface AgentUI {
