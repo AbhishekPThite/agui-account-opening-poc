@@ -17,11 +17,6 @@
 
     <p class="error" *ngIf="error()">{{error()}}</p>
 
-    <section class="panel" *ngIf="assistantText().length">
-        <h2>Agent response</h2>
-        <p *ngFor="let message of assistantText()">{{message}}</p>
-    </section>
-
     <section class="panel" *ngIf="uiState()">
         <app-widget-renderer [ui]="uiState()" (submit)="submitWidget($event)"></app-widget-renderer>
     </section>
@@ -49,6 +44,11 @@
         <summary>AG-UI event trace ({{events().length}} events)</summary>
         <pre>{{events() | json}}</pre>
     </details>
+
+    <section class="panel" *ngIf="assistantText().length">
+        <h2>Agent response</h2>
+        <p *ngFor="let message of assistantText()">{{message}}</p>
+    </section>
 
     <footer>Demo only · Mock client and draft services · Do not enter real customer data</footer>
 </main>
