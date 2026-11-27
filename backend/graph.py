@@ -368,7 +368,7 @@ def build_journey_status(state: AccountOpeningState) -> dict[str, Any]:
         statuses["PROFILE"] = "PENDING"
 
     if not setup_complete:
-        statuses["ACCOUNT_DETAILS"] = "IN_PROGRESS" if current_stage == "ACCOUNT_DETAILS" else "PENDING"
+        statuses["ACCOUNT_DETAILS"] = "IN_PROGRESS" if current_stage == "ACCOUNT_DETAILS" else "ACTION_REQUIRED"
     elif not joint_complete:
         statuses["ACCOUNT_DETAILS"] = "ACTION_REQUIRED"
     else:
@@ -377,12 +377,12 @@ def build_journey_status(state: AccountOpeningState) -> dict[str, Any]:
     statuses["RISK_PROFILE"] = (
         "COMPLETED" if risk_complete else
         "IN_PROGRESS" if current_stage == "RISK_PROFILE" else
-        "PENDING"
+        "ACTION_REQUIRED"
     )
     statuses["FEATURES"] = (
         "COMPLETED" if features_complete else
         "IN_PROGRESS" if current_stage == "FEATURES" else
-        "PENDING"
+        "ACTION_REQUIRED"
     )
     statuses["SUMMARY"] = (
         "COMPLETED" if draft_created else
@@ -444,7 +444,12 @@ def open_dashboard_section(state: AccountOpeningState) -> dict[str, Any]:
     if section == "PROFILE":
         return prepare_profile_assessment(state)
     if section == "ACCOUNT_DETAILS":
-        return prepare_account_setup(state)
+        ownership = str(state.get("ownership", "INDIVIDUAL")).upper()
+        joint_required = ownership in {"JOINT", "JOINT_TOD"}
+        joint_missing = joint_required and not (
+            state.get("joint_owner_name") and state.get("joint_owner_tax_residency")
+        )
+        return prepare_ui(state) if state.get("account_setup_complete") and joint_missing else prepare_account_setup(state)
     if section == "RISK_PROFILE":
         return prepare_risk_assessment(state)
     if section == "FEATURES":
@@ -452,6 +457,16 @@ def open_dashboard_section(state: AccountOpeningState) -> dict[str, Any]:
             raise ValueError("Select an account product in Account Details before opening Product Features.")
         return prepare_product_features(state)
     if section == "SUMMARY":
+        status = build_journey_status(state)
+        incomplete = [item["label"] for item in status["sections"]
+                      if item["id"] != "SUMMARY" and item["status"] != "COMPLETED"]
+        if incomplete:
+            dashboard = prepare_application_dashboard(state)
+            dashboard["messages"] = [AIMessage(content=(
+                "The application is not ready for final review. Complete these sections first: "
+                + ", ".join(incomplete)
+            ))]
+            return dashboard
         return prepare_ui(state)
     raise ValueError(f"Unsupported application section: {section!r}")
 
