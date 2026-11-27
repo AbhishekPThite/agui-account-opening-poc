@@ -159,10 +159,10 @@ def prepare_account_setup(state: AccountOpeningState) -> dict[str, Any]:
 def route_after_setup(state: AccountOpeningState) -> str:
     if state.get("profile_capture_requested"):
         return "capture_profile"
-    if state.get("profile_data_submitted"):
-        return "retrieve_client"
     if state.get("profile_confirmed"):
         return "continue_journey"
+    if state.get("profile_data_submitted"):
+        return "retrieve_client"
     if state.get("account_setup_complete"):
         return "retrieve_client"
     return "show_setup"
