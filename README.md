@@ -529,3 +529,23 @@ Manual checks:
 ### Upfront conversational prefill across the journey
 
 The first natural-language request is used to extract explicit values for account setup, risk assessment and product features (when the product type is identified). Risk and product-feature values are stored in workflow state and rendered as defaults when those later screens are reached. This is prefill only: mandatory forms still require explicit review and submission, and no suitability, eligibility or approval decision is made by the LLM.
+
+
+## Milestone 10A.1 – Dashboard-first backend workspace
+
+The initial account-opening request now retrieves the client profile and presents an APPLICATION_DASHBOARD workspace instead of forcing the user through the account setup, profile, risk and feature screens in sequence.
+
+The backend dashboard model exposes section-level status and descriptions for PROFILE, ACCOUNT_DETAILS, RISK_PROFILE, FEATURES and SUMMARY.
+
+A structured DASHBOARD_NAVIGATION request can open PROFILE, ACCOUNT_DETAILS, RISK_PROFILE, FEATURES or SUMMARY. Section navigation prepares the existing section widget from persisted LangGraph state; it does not mark the section complete. Account Details opens the joint-owner form when setup is already complete but required joint-owner details are missing. Product Features cannot be opened until a product is selected.
+
+Final application review is guarded: the summary section returns to the dashboard with an explanation until the required sections are complete. Explicit approval and draft creation remain separate gates.
+
+Backend regression tests cover dashboard statuses, direct section opening and the final-review guard. Run:
+
+```bash
+cd backend
+python -m unittest test_journey_status.py -v
+```
+
+The Angular dashboard navigation controls are the next increment (10A.2).
