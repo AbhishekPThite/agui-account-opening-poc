@@ -32,7 +32,7 @@ import { AgentUI, AgentUIField } from '../models/agent-ui.model';
         <ng-template #textInput>
           <input
             [id]="field.name"
-            [type]="field.type === 'number' ? 'number' : 'text'"
+            [type]="field.type === 'number' || field.type === 'date' ? field.type : 'text'"
             [placeholder]="field.placeholder ?? ''"
             [required]="field.required ?? false"
             [ngModel]="values[field.name] ?? field.defaultValue ?? ''"
@@ -40,9 +40,10 @@ import { AgentUI, AgentUIField } from '../models/agent-ui.model';
         </ng-template>
       </div>
 
-      <button class="primary" (click)="submitForm()" [disabled]="!isValid()">
-        Continue
-      </button>
+      <div class="form-actions">
+        <button class="primary" (click)="submitForm()" [disabled]="!isValid()">Continue</button>
+        <button *ngIf="ui.widgetId === 'BENEFICIARY_CAPTURE'" type="button" class="secondary" (click)="skipOptional()">Skip beneficiary</button>
+      </div>
     </section>
   `,
   styles: [`
@@ -53,6 +54,8 @@ import { AgentUI, AgentUIField } from '../models/agent-ui.model';
     .eyebrow { font-size: 11px; letter-spacing: .08em; color: #64748b; }
     h2, p { margin: 0; }
     button { justify-self: start; }
+    .form-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+    .secondary { border: 1px solid #cbd5e1; background: white; border-radius: 8px; padding: 10px 14px; font: inherit; }
   `]
 })
 export class DynamicFormComponent implements OnChanges {
@@ -81,6 +84,10 @@ export class DynamicFormComponent implements OnChanges {
 
   submitForm(): void {
     if (this.isValid()) this.submit.emit({ ...this.values });
+  }
+
+  skipOptional(): void {
+    this.submit.emit({ __beneficiaryAction: 'SKIP' });
   }
 }
 
