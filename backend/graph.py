@@ -47,6 +47,7 @@ class AccountOpeningState(TypedDict, total=False):
     product_features: dict[str, Any]
     product_features_completed: bool
     journey_status: dict[str, Any]
+    conversation_only: bool
 
 
 EDITABLE_FIELDS = {
@@ -276,6 +277,7 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
         "joint_owner_name": str(extracted.get("jointOwnerName") or owner or state.get("joint_owner_name", "")),
         "joint_owner_tax_residency": str(extracted.get("jointOwnerTaxResidency") or extracted.get("jointOwnerTaxResidency") or tax or state.get("joint_owner_tax_residency", "")),
         "messages": [AIMessage(content=assistant_answer)] if assistant_answer else [],
+        "conversation_only": bool(assistant_answer),
     }
 
 
@@ -388,6 +390,8 @@ def prepare_account_setup(state: AccountOpeningState) -> dict[str, Any]:
 
 
 def route_after_setup(state: AccountOpeningState) -> str:
+    if state.get("conversation_only"):
+        return "stay"
     if state.get("profile_capture_requested"):
         return "capture_profile"
     if state.get("profile_confirmed"):
@@ -882,7 +886,8 @@ def build_graph(
     workflow.add_conditional_edges(
         "understand_request", route_after_setup,
         {"show_setup": "prepare_account_setup", "retrieve_client": "retrieve_client",
-         "continue_journey": "determine_requirements", "capture_profile": "prepare_profile_capture"},
+         "continue_journey": "determine_requirements", "capture_profile": "prepare_profile_capture",
+         "stay": END},
     )
     workflow.add_edge("prepare_account_setup", "publish_journey_status")
     workflow.add_edge("retrieve_client", "assess_client_profile")
