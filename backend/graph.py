@@ -8,6 +8,7 @@ from langchain_core.messages import AnyMessage, HumanMessage, AIMessage
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 from langgraph.checkpoint.memory import MemorySaver
+from langgraph.types import interrupt
 from model_client import extract_account_request, model
 
 
@@ -23,6 +24,7 @@ class AccountOpeningState(TypedDict, total=False):
     ui: dict[str, Any]
     application: dict[str, Any]
     missing_fields: list[str]
+    approval_status: str
 
 
 def latest_user_text(messages: list[AnyMessage]) -> str:
@@ -102,7 +104,7 @@ def prepare_ui(state: AccountOpeningState) -> dict[str, Any]:
             "mode": "FORM",
             "widgetId": "JOINT_OWNER_FORM",
             "title": "Joint owner information",
-            "description": "Complete the required information before creating the account draft.",
+            "description": "Complete the required information before reviewing the application.",
             "fields": [
                 {
                     "name": "jointOwnerName",
@@ -124,28 +126,76 @@ def prepare_ui(state: AccountOpeningState) -> dict[str, Any]:
             f"I found client {state['client_profile']['displayName']} ({state['client_id']}). "
             "The mock KYC service reports VALID. Please provide the joint owner's name and tax residency."
         )
-    else:
-        profile = state.get("client_profile", {})
-        ui = {
-            "mode": "SUMMARY",
-            "widgetId": "APPLICATION_SUMMARY",
-            "title": "Application details",
-            "description": "Review the extracted account-opening information.",
-            "fields": [],
-            "data": {
-                "clientId": state.get("client_id", ""),
-                "clientName": profile.get("displayName", ""),
-                "accountType": state.get("account_type", ""),
-                "ownership": state.get("ownership", ""),
-                "baseCurrency": state.get("base_currency", ""),
-                "kycStatus": profile.get("kycStatus", "UNKNOWN"),
-            },
+        return {"ui": ui, "messages": [AIMessage(content=message)]}
+
+    profile = state.get("client_profile", {})
+    ui = {
+        "mode": "SUMMARY",
+        "widgetId": "APPLICATION_SUMMARY",
+        "title": "Review application details",
+        "description": "Check the details below. The draft will be created only after you explicitly confirm.",
+        "fields": [],
+        "data": {
+            "clientId": state.get("client_id", ""),
+            "clientName": profile.get("displayName", ""),
+            "accountType": state.get("account_type", ""),
+            "ownership": state.get("ownership", ""),
+            "baseCurrency": state.get("base_currency", ""),
+            "jointOwnerName": state.get("joint_owner_name", "") or "—",
+            "jointOwnerTaxResidency": state.get("joint_owner_tax_residency", "") or "—",
+            "kycStatus": profile.get("kycStatus", "UNKNOWN"),
+        },
+        "approvalRequired": True,
+    }
+    message = "All required POC fields are present. Please review the application and explicitly confirm or reject it."
+    return {
+        "ui": ui,
+        "approval_status": "PENDING",
+        "messages": [AIMessage(content=message)],
+    }
+
+
+def await_human_approval(state: AccountOpeningState) -> dict[str, Any]:
+    # This node has no side effects before interrupt: LangGraph may re-run it on resume.
+    if state.get("approval_status") != "PENDING":
+        raise ValueError("There is no pending application review to resume.")
+
+    decision = interrupt({
+        "kind": "ACCOUNT_OPENING_APPROVAL",
+        "message": "Review the application details and choose Confirm draft or Reject.",
+        "application": state.get("ui", {}).get("data", {}),
+    })
+
+    approved = (
+        isinstance(decision, dict)
+        and decision.get("action") == "APPROVE"
+        and decision.get("approved") is True
+    )
+    if approved:
+        return {
+            "approval_status": "APPROVED",
+            "messages": [AIMessage(content="Application review confirmed. Creating the mock draft now.")],
         }
-        message = "All required POC fields are present. Preparing the account-opening draft."
-    return {"ui": ui, "messages": [AIMessage(content=message)]}
+
+    return {
+        "approval_status": "REJECTED",
+        "ui": {
+            "mode": "ALERT",
+            "widgetId": "INFORMATION_ALERT",
+            "title": "Application not approved",
+            "description": "No draft was created. Start a new account-opening request if you want to make changes and review again.",
+            "fields": [],
+            "data": {"status": "REJECTED"},
+        },
+        "messages": [AIMessage(content="The application was not approved. No draft was created.")],
+    }
 
 
 def create_mock_draft(state: AccountOpeningState) -> dict[str, Any]:
+    # Defense in depth: never create a draft unless the graph recorded approval.
+    if state.get("approval_status") != "APPROVED":
+        raise ValueError("Draft creation blocked: explicit application approval is required.")
+
     # Replace with POST /account-applications/drafts in the Java Experience API.
     draft = {
         "applicationId": f"AO-{uuid.uuid4().hex[:8].upper()}",
@@ -165,7 +215,7 @@ def create_mock_draft(state: AccountOpeningState) -> dict[str, Any]:
             "mode": "COMPLETE",
             "widgetId": "DRAFT_CONFIRMATION",
             "title": "Draft created",
-            "description": "A mock account-opening draft was created. No real account has been opened.",
+            "description": "A mock account-opening draft was created after explicit confirmation. No real account has been opened.",
             "fields": [],
             "data": {
                 "applicationId": draft["applicationId"],
@@ -178,7 +228,11 @@ def create_mock_draft(state: AccountOpeningState) -> dict[str, Any]:
 
 
 def route_after_requirements(state: AccountOpeningState) -> str:
-    return "wait_for_input" if state.get("missing_fields") else "create_draft"
+    return "wait_for_input" if state.get("missing_fields") else "await_approval"
+
+
+def route_after_approval(state: AccountOpeningState) -> str:
+    return "create_draft" if state.get("approval_status") == "APPROVED" else "finish"
 
 
 def build_graph():
@@ -187,6 +241,7 @@ def build_graph():
     workflow.add_node("retrieve_client", retrieve_client)
     workflow.add_node("determine_requirements", determine_requirements)
     workflow.add_node("prepare_ui", prepare_ui)
+    workflow.add_node("await_approval", await_human_approval)
     workflow.add_node("create_draft", create_mock_draft)
     workflow.add_edge(START, "understand_request")
     workflow.add_edge("understand_request", "retrieve_client")
@@ -194,7 +249,11 @@ def build_graph():
     workflow.add_edge("determine_requirements", "prepare_ui")
     workflow.add_conditional_edges(
         "prepare_ui", route_after_requirements,
-        {"wait_for_input": END, "create_draft": "create_draft"},
+        {"wait_for_input": END, "await_approval": "await_approval"},
+    )
+    workflow.add_conditional_edges(
+        "await_approval", route_after_approval,
+        {"create_draft": "create_draft", "finish": END},
     )
     workflow.add_edge("create_draft", END)
     return workflow.compile(checkpointer=MemorySaver())
