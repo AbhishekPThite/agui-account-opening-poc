@@ -11,8 +11,6 @@ load_dotenv()
 from langgraph.checkpoint.memory import MemorySaver
 
 logger = logging.getLogger(__name__)
-
-# Restrict checkpoint deserialization before constructing the saver.
 os.environ.setdefault("LANGGRAPH_STRICT_MSGPACK", "true")
 
 _pool: Any | None = None
@@ -20,21 +18,25 @@ _saver: Any | None = None
 _backend = os.getenv("CHECKPOINTER_BACKEND", "memory").strip().lower()
 
 
-def build_checkpointer() -> Any:
-    """Build the graph checkpointer; async PostgreSQL resources open in FastAPI lifespan."""
-    global _pool, _saver
-
+def build_checkpointer() -> Any | None:
+    """Return MemorySaver immediately; async PostgreSQL saver is created in app lifespan."""
     if _backend == "memory":
         logger.warning("Using MemorySaver: checkpoints will be lost when the process exits.")
         return MemorySaver()
-
     if _backend != "postgres":
         raise RuntimeError("CHECKPOINTER_BACKEND must be either 'memory' or 'postgres'.")
+    if not os.getenv("DATABASE_URL", "").strip():
+        raise RuntimeError("DATABASE_URL is required when CHECKPOINTER_BACKEND=postgres.")
+    return None
+
+
+async def setup_checkpointer() -> Any | None:
+    """Create and initialize the async PostgreSQL saver inside the running event loop."""
+    global _pool, _saver
+    if _backend == "memory":
+        return checkpointer
 
     database_url = os.getenv("DATABASE_URL", "").strip()
-    if not database_url:
-        raise RuntimeError("DATABASE_URL is required when CHECKPOINTER_BACKEND=postgres.")
-
     try:
         from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
         from psycopg.rows import dict_row
@@ -61,26 +63,23 @@ def build_checkpointer() -> Any:
         },
         open=False,
     )
-    _saver = AsyncPostgresSaver(_pool)
-    return _saver
-
-
-async def setup_checkpointer() -> None:
-    """Open the async pool and initialize PostgreSQL checkpoint tables at app startup."""
-    if _backend != "postgres":
-        return
-    if _pool is None or _saver is None:
-        raise RuntimeError("PostgreSQL checkpointer was not initialized.")
     await _pool.open()
     await _pool.wait()
+    # AsyncPostgresSaver captures the active event loop, so construct it here,
+    # not at module import time.
+    _saver = AsyncPostgresSaver(_pool)
     await _saver.setup()
     logger.info("Async PostgreSQL LangGraph checkpointer initialized and migrations verified.")
+    return _saver
 
 
 async def close_checkpointer() -> None:
     """Close the asynchronous PostgreSQL connection pool during application shutdown."""
+    global _pool, _saver
     if _pool is not None:
         await _pool.close()
+        _pool = None
+        _saver = None
         logger.info("PostgreSQL checkpoint connection pool closed.")
 
 
