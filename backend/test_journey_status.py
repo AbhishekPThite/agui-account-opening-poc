@@ -1,6 +1,6 @@
 import unittest
 
-from graph import build_journey_status
+from graph import build_journey_status, prepare_application_dashboard, open_dashboard_section
 
 
 class JourneyStatusTests(unittest.TestCase):
@@ -54,6 +54,61 @@ class JourneyStatusTests(unittest.TestCase):
         self.assertEqual(result["completedCount"], 4)
         self.assertEqual(result["totalCount"], 5)
         self.assertEqual(result["currentStage"], "SUMMARY")
+
+    def test_dashboard_exposes_section_level_action_statuses(self):
+        state = {
+            "client_id": "C12345",
+            "product_type": "BROKERAGE",
+            "ownership": "JOINT",
+            "client_profile": {"displayName": "Alex Morgan", "kycStatus": "VALID"},
+            "profile_assessment": {
+                "confirmationRequired": [{"field": "Personal details|email"}],
+                "actionRequired": [],
+            },
+            "account_setup_complete": False,
+            "risk_assessment_completed": False,
+            "product_features_completed": False,
+            "ui": {},
+        }
+        result = prepare_application_dashboard(state)
+        self.assertEqual(result["ui"]["widgetId"], "APPLICATION_DASHBOARD")
+        sections = {item["id"]: item for item in result["ui"]["journeyStatus"]["sections"]}
+        self.assertEqual(sections["PROFILE"]["status"], "CONFIRMATION_REQUIRED")
+        self.assertEqual(sections["ACCOUNT_DETAILS"]["status"], "ACTION_REQUIRED")
+        self.assertEqual(sections["RISK_PROFILE"]["status"], "ACTION_REQUIRED")
+        self.assertEqual(sections["FEATURES"]["status"], "ACTION_REQUIRED")
+        self.assertEqual(sections["SUMMARY"]["status"], "PENDING")
+
+    def test_dashboard_section_navigation_opens_requested_section(self):
+        state = {
+            "requested_section": "RISK_PROFILE",
+            "client_id": "C12345",
+            "product_type": "BROKERAGE",
+            "client_profile": {},
+            "risk_assessment": {"riskTolerance": "MODERATE"},
+        }
+        result = open_dashboard_section(state)
+        self.assertEqual(result["ui"]["widgetId"], "RISK_ASSESSMENT_FORM")
+        self.assertEqual(
+            next(field for field in result["ui"]["fields"] if field["name"] == "riskTolerance")["defaultValue"],
+            "MODERATE",
+        )
+
+    def test_final_summary_is_blocked_until_required_sections_complete(self):
+        state = {
+            "requested_section": "SUMMARY",
+            "client_id": "C12345",
+            "product_type": "BROKERAGE",
+            "account_type": "BROKERAGE",
+            "ownership": "INDIVIDUAL",
+            "client_profile": {"displayName": "Alex Morgan"},
+            "profile_assessment": {"confirmationRequired": [], "actionRequired": []},
+            "ui": {},
+        }
+        result = open_dashboard_section(state)
+        self.assertEqual(result["ui"]["widgetId"], "APPLICATION_DASHBOARD")
+        self.assertFalse(result["ui"].get("approvalRequired", False))
+        self.assertIn("not ready for final review", result["messages"][0].content.lower())
 
     def test_draft_confirmation_completes_summary_stage(self):
         result = build_journey_status({
