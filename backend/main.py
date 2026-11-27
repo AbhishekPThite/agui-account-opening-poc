@@ -12,12 +12,21 @@ from checkpointer import (
     close_checkpointer,
     setup_checkpointer,
 )
-from graph import graph
+from graph import build_graph
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await setup_checkpointer()
+    saver = await setup_checkpointer()
+    graph = build_graph(checkpointer_override=saver)
+    agui_agent = LangGraphAgent(
+        name="account-opening-agent",
+        graph=graph,
+        description="Wealth account opening assistant",
+        emit_raw_events=False,
+        emit_interrupt_outcome=True,
+    )
+    add_langgraph_fastapi_endpoint(app, agui_agent, path="/agent")
     try:
         yield
     finally:
@@ -26,7 +35,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Wealth Account Opening AG-UI POC",
-    version="0.3.1",
+    version="0.3.2",
     lifespan=lifespan,
 )
 
@@ -47,16 +56,3 @@ async def health():
         "service": "account-opening-agent",
         "checkpointer": checkpointer_backend(),
     }
-
-
-# Structured AG-UI interrupt outcomes expose the interrupt ID needed by
-# the Angular client to resume the same LangGraph thread using resume[].
-agui_agent = LangGraphAgent(
-    name="account-opening-agent",
-    graph=graph,
-    description="Wealth account opening assistant",
-    emit_raw_events=False,
-    emit_interrupt_outcome=True,
-)
-
-add_langgraph_fastapi_endpoint(app, agui_agent, path="/agent")
