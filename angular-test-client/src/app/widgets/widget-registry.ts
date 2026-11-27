@@ -13,6 +13,7 @@ export const WIDGET_REGISTRY: Record<string, Type<AgentWidgetInstance>> = {
   ACCOUNT_SETUP_FORM: DynamicFormComponent,
   PROFILE_DATA_CAPTURE: DynamicFormComponent,
   BENEFICIARY_CAPTURE: DynamicFormComponent,
+  PRODUCT_FEATURES_FORM: DynamicFormComponent,
   APPLICATION_SUMMARY: AccountSummaryComponent,
   DRAFT_CONFIRMATION: DraftConfirmationComponent,
   INFORMATION_ALERT: InformationAlertComponent,
