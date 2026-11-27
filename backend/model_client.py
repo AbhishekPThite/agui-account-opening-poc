@@ -114,6 +114,12 @@ Do not return markdown, code fences, prose, or explanations."""
         for key in field_schema
     }
     logger.info("LLM extracted field names: %s", [key for key, value in extracted.items() if value])
+    if extracted.get("margin_option", "").upper() not in {"", "NONE", "MARGIN"}:
+        logger.warning("LLM returned unsupported margin option: %s", extracted["margin_option"])
+        extracted["margin_option"] = ""
+    else:
+        extracted["margin_option"] = extracted.get("margin_option", "").upper()
+
     return extracted
 
 
@@ -123,8 +129,9 @@ async def extract_account_request(user_text: str) -> dict[str, Any]:
         user_text,
         workflow_context=(
             "Wealth account opening. Identify the requested account product, "
-            "registration structure, client identifier, and any explicitly "
-            "provided joint-owner details."
+            "registration structure, client identifier, account nickname, margin "
+            "preference, and any explicitly provided joint-owner details. This "
+            "extractor also supports follow-up messages that prefill the account setup form."
         ),
         field_schema={
             "client_id": "Client identifier, if explicitly stated.",
@@ -140,6 +147,8 @@ async def extract_account_request(user_text: str) -> dict[str, Any]:
             ),
             "joint_owner_name": "Joint owner's full name, only if explicitly provided.",
             "joint_owner_tax_residency": "Joint owner's tax residency, only if explicitly provided.",
+            "account_nickname": "Requested account nickname, only if explicitly stated.",
+            "margin_option": "Margin preference enum: NONE (cash/no margin) or MARGIN (margin requested). Extract only when explicitly stated.",
         },
         extraction_rules=(
             "Do not determine eligibility, KYC status, risk assessment, tax status, "
