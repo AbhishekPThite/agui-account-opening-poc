@@ -203,7 +203,10 @@ export class DraftConfirmationComponent {
           <div class="profile-row" *ngFor="let field of section.fields"><span>{{ field.label }}</span><strong>{{ field.value }}</strong></div>
         </div>
       </details>
-      <button class="primary" type="button" (click)="confirmProfile()" [disabled]="actionRequired().length > 0">Confirm profile and continue</button>
+      <div class="profile-actions">
+        <button type="button" (click)="editProfile()">Review or update profile details</button>
+        <button class="primary" type="button" (click)="confirmProfile()" [disabled]="actionRequired().length > 0">Confirm profile and continue</button>
+      </div>
       <p class="note" *ngIf="actionRequired().length">Required profile information is missing. Complete it before continuing.</p>
     </section>`,
   styles: [`
@@ -217,7 +220,7 @@ export class DraftConfirmationComponent {
     .profile-row { display: flex; justify-content: space-between; gap: 16px; padding: 7px 0; border-bottom: 1px solid #e2e8f0; }
     .profile-row span { color: #64748b; }.profile-row strong { text-align: right; overflow-wrap: anywhere; }
     details { border-top: 1px solid #e2e8f0; padding-top: 10px; } summary { cursor: pointer; font-weight: 600; }
-    button { justify-self: start; }
+    .profile-actions { display: flex; flex-wrap: wrap; gap: 10px; }.profile-actions button { justify-self: start; }
   `]
 })
 export class ProfileAssessmentComponent {
@@ -233,6 +236,9 @@ export class ProfileAssessmentComponent {
   sections(): Array<{ name: string; status: string; fields: Array<{ label: string; value: string }> }> {
     const value = this.ui.data?.['sections'];
     return Array.isArray(value) ? value as Array<{ name: string; status: string; fields: Array<{ label: string; value: string }> }> : [];
+  }
+  editProfile(): void {
+    this.submit.emit({ __profileAction: 'EDIT' });
   }
   confirmProfile(): void {
     if (!this.actionRequired().length) this.submit.emit({ __profileAction: 'CONFIRM' });
