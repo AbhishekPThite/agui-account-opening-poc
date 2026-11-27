@@ -319,7 +319,7 @@ def route_after_approval(state: AccountOpeningState) -> str:
     return "finish"
 
 
-def build_graph():
+def build_graph(checkpointer_override: Any | None = None):
     workflow = StateGraph(AccountOpeningState)
     workflow.add_node("understand_request", understand_request)
     workflow.add_node("retrieve_client", retrieve_client)
@@ -341,7 +341,5 @@ def build_graph():
         {"create_draft": "create_draft", "revalidate": "retrieve_client", "finish": END},
     )
     workflow.add_edge("create_draft", END)
-    return workflow.compile(checkpointer=checkpointer)
-
-
-graph = build_graph()
+    saver = checkpointer if checkpointer_override is None else checkpointer_override
+    return workflow.compile(checkpointer=saver)
