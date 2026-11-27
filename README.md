@@ -549,3 +549,23 @@ python -m unittest test_journey_status.py -v
 ```
 
 The Angular dashboard navigation controls are the next increment (10A.2).
+
+
+## Milestone 10A.2 – Angular dashboard-first experience
+
+The Angular client now renders the APPLICATION_DASHBOARD as the primary account-opening workspace. It shows client/product context, overall completion, and clickable section cards for Client Profile, Account Details, Risk Profile, Features and Summary. Each card displays its backend-calculated status and a short description.
+
+Selecting a card sends a structured DASHBOARD_NAVIGATION message on the same AG-UI thread. The backend opens the requested section using the checkpointed application state. A section form remains visible until explicitly submitted; after submission, the backend returns the user to the dashboard with refreshed status. The section workspace includes a Back to application dashboard action. The Dashboard action is also supported by the backend for direct return.
+
+The Summary card remains subject to backend readiness checks. Opening it before the required sections are complete returns the dashboard with an explanation. The explicit application approval interrupt and draft-creation gate are unchanged.
+
+Manual checks:
+1. Start a new journey. Verify the first workspace is the section dashboard rather than a sequential form.
+2. Open Client Profile, return to the dashboard, and verify the section status remains accurate.
+3. Open Account Details, change the registration or nickname, submit, and verify the dashboard returns with updated context/status.
+4. Open Risk Profile and Features directly. Verify previously captured values are prepopulated; submit and verify the dashboard returns.
+5. For Joint or Joint TOD, open Account Details and verify missing joint-owner information is presented.
+6. Select Summary before completing mandatory sections; verify the dashboard remains visible and explains what is outstanding.
+7. Complete all required sections, open Summary, and verify the existing explicit approval action is still required before draft creation.
+
+The Angular build and browser workflow must be verified locally after pulling; these changes were committed through GitHub and were not built in the user's environment.
