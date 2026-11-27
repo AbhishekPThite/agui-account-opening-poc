@@ -491,3 +491,36 @@ Manual checks:
 5. Try an unsupported collateral value or a negative amount. Verify it is not accepted as a valid prefill; structured submission must still be rejected if required values are missing or invalid.
 6. Complete the form explicitly and verify the application summary and draft request include `productFeatures`.
 
+## Unified conversational journey assistant (Milestone 9D)
+
+The Angular client now presents one conversation panel throughout the active account-opening journey instead of separate chat panels for Account Setup, Risk Assessment and Product Features. The same interface can also be used during application review to request a change; review changes still resume the existing LangGraph approval interrupt and require a fresh summary and explicit approval.
+
+The assistant is aware of the active UI step:
+- Account Setup: captures product, registration, nickname and margin preferences.
+- Client profile assessment: answers questions about the current profile-review step. Use the profile review controls to confirm or request profile data capture.
+- Profile data capture, joint-owner details and beneficiary details: extracts values from the currently rendered form fields.
+- Risk Assessment: uses the dedicated risk-field extractor.
+- Product Features: uses the selected product's feature schema.
+- Application review: accepts edits through the existing interrupt/resume flow.
+
+If the message does not yield a supported field value, the assistant answers a question about the active step. It uses the current step title, description and field definitions as context. It does not claim to update the form when it has only answered a question. A question-only response leaves the current screen in place.
+
+**Workflow controls remain authoritative:** conversational messages do not submit forms, complete mandatory stages, approve applications or create drafts. The RM must use the relevant form action. Risk, product-feature, client-profile, and draft gates remain in place. The assistant must not make KYC, suitability, legal/tax, credit, collateral, permissions or eligibility decisions.
+
+The generic active-form extractor is constrained to the fields and select options provided by the current UI metadata. It captures explicit values only and ignores unsupported enum values and invalid positive-number inputs. The POC still relies on the configured LLM for conversational extraction and question answering; if the model is disabled, the unified panel remains available but natural-language capture falls back to the form and step guidance is generic.
+
+Run focused tests from the backend directory:
+
+```bash
+python -m unittest test_unified_journey_assistant.py -v
+python -m unittest test_conversational_account_setup.py test_risk_assessment.py test_product_features.py -v
+```
+
+Manual checks:
+1. Start a journey and use the same conversation panel on Account Setup to ask what a field means; verify the form remains visible.
+2. Describe a joint-owner name while the Joint Owner form is active; verify only that field is populated and tax residency is retained.
+3. Ask a question on the Client Profile assessment screen; verify the assistant explains the step without skipping the profile confirmation controls.
+4. On Risk Assessment and Product Features, use natural language to prefill fields and then ask a question; verify both actions use the same panel.
+5. During application review, request a change. Verify the graph resumes the pending interrupt, generates a revised summary and requires a new explicit approval.
+6. Verify no conversational message alone completes a required stage or creates a draft.
+
