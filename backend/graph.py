@@ -32,6 +32,8 @@ class AccountOpeningState(TypedDict, total=False):
     account_nickname: str
     margin_option: str
     account_setup_complete: bool
+    profile_confirmed: bool
+    profile_assessment: dict[str, Any]
 
 
 EDITABLE_FIELDS = {
@@ -100,6 +102,7 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
         text, state.get("joint_owner_tax_residency", "")
     )
     setup_submitted = form_submission and extracted.get("formId") == "ACCOUNT_SETUP"
+    profile_confirmed = form_submission and extracted.get("formId") == "PROFILE_CONFIRMATION"
     selected_product = str(extracted.get("productType") or product_type).upper()
     selected_registration = str(extracted.get("registrationType") or ownership).upper()
     return {
@@ -110,6 +113,7 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
         "account_nickname": str(extracted.get("accountNickname") or state.get("account_nickname") or "Brokerage 1"),
         "margin_option": str(extracted.get("marginOption") or state.get("margin_option", "NONE")).upper(),
         "account_setup_complete": setup_submitted or state.get("account_setup_complete", False),
+        "profile_confirmed": profile_confirmed or state.get("profile_confirmed", False),
         "joint_owner_name": str(extracted.get("jointOwnerName") or owner or state.get("joint_owner_name", "")),
         "joint_owner_tax_residency": str(extracted.get("jointOwnerTaxResidency") or tax or state.get("joint_owner_tax_residency", "")),
     }
@@ -133,7 +137,11 @@ def prepare_account_setup(state: AccountOpeningState) -> dict[str, Any]:
 
 
 def route_after_setup(state: AccountOpeningState) -> str:
-    return "retrieve_client" if state.get("account_setup_complete") else "show_setup"
+    if state.get("profile_confirmed"):
+        return "continue_journey"
+    if state.get("account_setup_complete"):
+        return "retrieve_client"
+    return "show_setup"
 
 
 async def retrieve_client(
@@ -147,6 +155,64 @@ async def retrieve_client(
     profile = await client_api.get_client_profile(client_id)
     return {"client_profile": profile}
 
+
+
+
+def assess_client_profile(state: AccountOpeningState) -> dict[str, Any]:
+    """Classify profile completeness using deterministic required-field rules."""
+    profile = state.get("client_profile", {})
+    personal = profile.get("personalDetails") or {}
+    residential = (profile.get("addresses") or {}).get("residential") or {}
+    tax_residencies = profile.get("taxResidencies") or []
+    tax = tax_residencies[0] if tax_residencies else {}
+    employment = profile.get("employment") or {}
+    investment = profile.get("investmentProfile") or {}
+    definitions = [
+        ("Personal details", personal, ["firstName", "lastName", "dateOfBirth", "email", "phone"],
+         {"firstName", "lastName", "dateOfBirth", "email", "phone"}),
+        ("Residential address", residential, ["line1", "line2", "city", "state", "postalCode", "country"],
+         {"line1", "city", "postalCode", "country"}),
+        ("Tax residency", tax, ["country", "taxIdType", "taxIdMasked", "status"], {"country"}),
+        ("Employment", employment, ["status", "occupation", "employerName", "industry"], {"status", "occupation"}),
+        ("Investment profile", investment, ["experienceLevel", "investmentObjectives", "riskTolerance", "annualIncomeRange", "netWorthRange"],
+         {"experienceLevel", "investmentObjectives", "riskTolerance"}),
+    ]
+    completed = [
+        {"label": "Client identity", "value": f"{profile.get('displayName', '')} ({profile.get('clientId', '')})"},
+        {"label": "KYC status (retrieved; not an approval)", "value": str(profile.get("kycStatus", "UNKNOWN"))},
+    ]
+    confirmations: list[dict[str, str]] = []
+    actions: list[dict[str, str]] = []
+    sections: list[dict[str, Any]] = []
+    for name, values, fields, required in definitions:
+        rows: list[dict[str, str]] = []
+        missing_required = False
+        for field in fields:
+            value = values.get(field)
+            present = value is not None and value != "" and value != []
+            label = field.replace("firstName", "First name").replace("lastName", "Last name").replace("dateOfBirth", "Date of birth").replace("taxIdType", "Tax ID type").replace("taxIdMasked", "Tax ID").replace("investmentObjectives", "Investment objectives")
+            display = ", ".join(map(str, value)) if isinstance(value, list) else (str(value) if present else "Not provided")
+            rows.append({"label": label, "value": display})
+            if present:
+                confirmations.append({"label": f"{name}: {label}", "value": display})
+            elif field in required:
+                missing_required = True
+                actions.append({"label": f"{name}: {label}", "value": "Required"})
+        sections.append({"name": name, "status": "ACTION_REQUIRED" if missing_required else "CONFIRMATION_REQUIRED" if any(r["value"] != "Not provided" for r in rows) else "NOT_PROVIDED", "fields": rows})
+    return {"profile_assessment": {"completed": completed, "confirmationRequired": confirmations,
+            "actionRequired": actions, "sections": sections, "isComplete": not actions}}
+
+
+def prepare_profile_assessment(state: AccountOpeningState) -> dict[str, Any]:
+    assessment = state.get("profile_assessment", {})
+    ui = {"mode": "SUMMARY", "widgetId": "PROFILE_ASSESSMENT",
+          "title": "Review existing client profile",
+          "description": "Review the information retrieved from the Client Experience API. Confirm it before continuing.",
+          "fields": [], "data": assessment, "approvalRequired": False}
+    return {"ui": ui, "messages": [AIMessage(content=(
+        f"Client profile retrieved. {len(assessment.get('confirmationRequired', []))} attributes need confirmation; "
+        f"{len(assessment.get('actionRequired', []))} required attributes need attention."
+    ))]}
 
 def determine_requirements(state: AccountOpeningState) -> dict[str, Any]:
     missing: list[str] = []
@@ -400,6 +466,8 @@ def build_graph(
         return await retrieve_client(state, client_api)
 
     workflow.add_node("retrieve_client", retrieve_client_node)
+    workflow.add_node("assess_client_profile", assess_client_profile)
+    workflow.add_node("prepare_profile_assessment", prepare_profile_assessment)
     workflow.add_node("determine_requirements", determine_requirements)
     workflow.add_node("prepare_ui", prepare_ui)
     workflow.add_node("await_approval", await_human_approval)
@@ -409,9 +477,14 @@ def build_graph(
     workflow.add_node("create_draft", create_draft_node)
 
     workflow.add_edge(START, "understand_request")
-    workflow.add_conditional_edges("understand_request", route_after_setup, {"show_setup": "prepare_account_setup", "retrieve_client": "retrieve_client"})
+    workflow.add_conditional_edges(
+        "understand_request", route_after_setup,
+        {"show_setup": "prepare_account_setup", "retrieve_client": "retrieve_client", "continue_journey": "determine_requirements"},
+    )
     workflow.add_edge("prepare_account_setup", END)
-    workflow.add_edge("retrieve_client", "determine_requirements")
+    workflow.add_edge("retrieve_client", "assess_client_profile")
+    workflow.add_edge("assess_client_profile", "prepare_profile_assessment")
+    workflow.add_edge("prepare_profile_assessment", END)
     workflow.add_edge("determine_requirements", "prepare_ui")
     workflow.add_conditional_edges(
         "prepare_ui", route_after_requirements,
