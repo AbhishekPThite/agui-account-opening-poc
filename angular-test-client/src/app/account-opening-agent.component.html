@@ -2,8 +2,6 @@
     <header class="hero">
         <div class="eyebrow">WEALTH TECHNOLOGY · AG-UI PROOF OF CONCEPT</div>
         <h1>Account Opening Assistant</h1>
-        <p>Test a conversational, metadata-driven account-opening journey.</p>
-        <div class="status"><span class="dot"></span> Angular test client · API at localhost:8000</div>
     </header>
 
     <section class="panel">
@@ -108,16 +106,6 @@
             {{busy() ? 'Assistant working…' : pendingInterruptId() ? 'Send review change' : 'Send message'}}
         </button>
         <p class="hint">Information is only captured into the active form. Use the form's Continue button to submit; conversational messages do not complete mandatory steps.</p>
-    </section>
-
-    <details class="panel" *ngIf="events().length">
-        <summary>AG-UI event trace ({{events().length}} events)</summary>
-        <pre>{{events() | json}}</pre>
-    </details>
-
-    <section class="panel" *ngIf="assistantText().length">
-        <h2>Agent response</h2>
-        <p *ngFor="let message of assistantText()">{{message}}</p>
     </section>
 
     <footer>Demo only · Mock client and draft services · Do not enter real customer data</footer>
