@@ -8,7 +8,6 @@ import {
   OnDestroy,
   Output,
   SimpleChanges,
-  Type,
   ViewChild,
   ViewContainerRef
 } from '@angular/core';
@@ -60,7 +59,7 @@ export class WidgetRendererComponent implements OnChanges, OnDestroy {
     if (!this.componentRef || this.activeWidgetId !== widgetId) {
       this.clearWidget();
       this.componentRef = this.widgetHost.createComponent(
-        componentType as Type<AgentWidgetInstance>
+        componentType
       );
       this.activeWidgetId = widgetId;
 
