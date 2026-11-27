@@ -548,8 +548,8 @@ def build_graph(
     workflow.add_edge("retrieve_client", "assess_client_profile")
     workflow.add_conditional_edges(
         "assess_client_profile",
-        lambda state: "capture" if not state.get("profile_confirmed") else "dashboard",
-        {"capture": "prepare_profile_assessment", "dashboard": "prepare_profile_assessment"},
+        lambda state: "continue" if state.get("profile_confirmed") else "review",
+        {"continue": "determine_requirements", "review": "prepare_profile_assessment"},
     )
     workflow.add_edge("prepare_profile_assessment", END)
     workflow.add_edge("prepare_profile_capture", END)
