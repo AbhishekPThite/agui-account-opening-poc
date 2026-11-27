@@ -103,6 +103,27 @@
         <p class="hint">Review the updated fields and complete any blanks in the form. Select Continue to submit; chat does not complete the assessment.</p>
     </section>
 
+    <section class="panel conversation-panel" *ngIf="uiState()?.widgetId === 'PRODUCT_FEATURES_FORM'">
+        <div class="eyebrow">CONVERSATION · PRODUCT FEATURES</div>
+        <h2>Describe the client's product preferences</h2>
+        <p>Describe only the preferences the client has stated. The assistant will prefill fields for the selected product; it will not approve options permissions, accept collateral or make credit decisions.</p>
+        <label for="product-features-prefill">Product preferences</label>
+        <textarea
+            id="product-features-prefill"
+            rows="2"
+            [ngModel]="conversationText()"
+            (ngModelChange)="conversationText.set($event)"
+            (keydown.control.enter)="sendProductFeaturesPrefill()"
+            (keydown.meta.enter)="sendProductFeaturesPrefill()"
+            [placeholder]="uiState()?.data?.['productType'] === 'CREDIT_FACILITY'
+              ? 'e.g. Request 250,000 against securities for liquidity…'
+              : 'e.g. Opt in to options and use FIFO for both tax-lot methods…'"></textarea>
+        <button class="primary" (click)="sendProductFeaturesPrefill()" [disabled]="busy() || !conversationText().trim()">
+            {{busy() ? 'Prefilling…' : 'Prefill product features'}}
+        </button>
+        <p class="hint">Review the updated fields and complete any required blanks. Select Continue to submit; chat does not complete this step.</p>
+    </section>
+
     <section class="panel conversation-panel" *ngIf="pendingInterruptId()">
         <div class="eyebrow">CONVERSATION · APPLICATION REVIEW</div>
         <h2>Would you like to change anything?</h2>
