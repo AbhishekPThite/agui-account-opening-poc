@@ -21,7 +21,7 @@ import { AgentUI, AgentUIField } from '../models/agent-ui.model';
         <select
           *ngIf="field.type === 'select'; else textInput"
           [id]="field.name"
-          [ngModel]="values[field.name]"
+          [ngModel]="values[field.name] ?? field.defaultValue ?? ''"
           (ngModelChange)="values[field.name] = $event">
           <option value="">Select...</option>
           <option *ngFor="let option of field.options ?? []" [value]="option">
