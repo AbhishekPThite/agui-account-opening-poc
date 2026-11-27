@@ -97,6 +97,14 @@ export class AccountOpeningAgentComponent {
     this.send(message);
   }
 
+  sendRiskPrefill(): void {
+    const message = this.conversationText().trim();
+    if (!message || this.busy() || this.uiState()?.widgetId !== 'RISK_ASSESSMENT_FORM') return;
+
+    this.conversationText.set('');
+    this.send(message);
+  }
+
   sendEditRequest(): void {
     const message = this.conversationText().trim();
     const interruptId = this.pendingInterruptId();
