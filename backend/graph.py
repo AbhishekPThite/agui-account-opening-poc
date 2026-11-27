@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 import uuid
 from typing import Annotated, Any, TypedDict
@@ -28,6 +29,10 @@ class AccountOpeningState(TypedDict, total=False):
     review_action: str
     review_revision: int
     draft_idempotency_key: str
+    product_type: str
+    account_nickname: str
+    margin_option: str
+    account_setup_complete: bool
 
 
 EDITABLE_FIELDS = {
@@ -56,7 +61,13 @@ def extract_value(pattern: str, text: str, default: str = "") -> str:
 async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
     text = latest_user_text(state.get("messages", []))
     extracted: dict[str, Any] = {}
-    if model is not None and text:
+    form_submission = text.startswith("POC_FORM_SUBMISSION:")
+    if form_submission:
+        try:
+            extracted = json.loads(text.split(":", 1)[1])
+        except (json.JSONDecodeError, IndexError):
+            raise ValueError("The submitted account setup form could not be read.")
+    elif model is not None and text:
         extracted = await extract_account_request(text)
 
     client_id = extracted.get("client_id") or extract_value(
@@ -79,14 +90,41 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
         r"(?:tax residency|residency)\s*(?:is|:|to)\s*([A-Za-z][A-Za-z .'-]+?)(?:,|;|$)",
         text, state.get("joint_owner_tax_residency", "")
     )
+    setup_submitted = form_submission and extracted.get("formId") == "ACCOUNT_SETUP"
     return {
-        "client_id": client_id,
-        "account_type": account_type.upper(),
-        "ownership": ownership.upper(),
-        "base_currency": currency.upper(),
-        "joint_owner_name": owner or state.get("joint_owner_name", ""),
-        "joint_owner_tax_residency": tax or state.get("joint_owner_tax_residency", ""),
+        "client_id": str(extracted.get("clientId") or client_id),
+        "account_type": str(extracted.get("productType") or account_type).upper(),
+        "product_type": str(extracted.get("productType") or state.get("product_type", account_type)).upper(),
+        "ownership": str(extracted.get("registrationType") or ownership).upper(),
+        "base_currency": str(extracted.get("baseCurrency") or currency).upper(),
+        "account_nickname": str(extracted.get("accountNickname") or state.get("account_nickname", "")),
+        "margin_option": str(extracted.get("marginOption") or state.get("margin_option", "NONE")).upper(),
+        "account_setup_complete": setup_submitted or state.get("account_setup_complete", False),
+        "joint_owner_name": str(extracted.get("jointOwnerName") or owner or state.get("joint_owner_name", "")),
+        "joint_owner_tax_residency": str(extracted.get("jointOwnerTaxResidency") or tax or state.get("joint_owner_tax_residency", "")),
     }
+
+
+def prepare_account_setup(state: AccountOpeningState) -> dict[str, Any]:
+    ui = {
+        "mode": "FORM",
+        "widgetId": "ACCOUNT_SETUP_FORM",
+        "title": "Set up brokerage account",
+        "description": "Confirm the product, registration and account preferences to begin.",
+        "fields": [
+            {"name": "productType", "label": "Product type", "type": "select", "required": True, "options": ["BROKERAGE", "INVESTMENT"], "defaultValue": state.get("product_type", "BROKERAGE")},
+            {"name": "registrationType", "label": "Registration type", "type": "select", "required": True, "options": ["INDIVIDUAL", "INDIVIDUAL_TOD", "JOINT", "JOINT_TOD"], "defaultValue": state.get("ownership", "INDIVIDUAL")},
+            {"name": "accountNickname", "label": "Account nickname", "type": "text", "required": True, "placeholder": "Account nickname", "defaultValue": state.get("account_nickname", "Alex Morgan - Brokerage")},
+            {"name": "marginOption", "label": "Margin option", "type": "select", "required": True, "options": ["NONE", "MARGIN"], "defaultValue": state.get("margin_option", "NONE")},
+            {"name": "baseCurrency", "label": "Base currency", "type": "select", "required": True, "options": ["USD", "SGD", "EUR", "GBP", "HKD", "AED"], "defaultValue": state.get("base_currency", "USD")}
+        ],
+        "data": {"clientId": state.get("client_id", "C12345")}
+    }
+    return {"ui": ui, "messages": [AIMessage(content="Let's confirm the account setup. I'll retrieve the existing client profile after you continue.")]}
+
+
+def route_after_setup(state: AccountOpeningState) -> str:
+    return "retrieve_client" if state.get("account_setup_complete") else "show_setup"
 
 
 async def retrieve_client(
@@ -346,6 +384,7 @@ def build_graph(
 ):
     workflow = StateGraph(AccountOpeningState)
     workflow.add_node("understand_request", understand_request)
+    workflow.add_node("prepare_account_setup", prepare_account_setup)
     async def retrieve_client_node(state: AccountOpeningState) -> dict[str, Any]:
         return await retrieve_client(state, client_api)
 
@@ -359,7 +398,8 @@ def build_graph(
     workflow.add_node("create_draft", create_draft_node)
 
     workflow.add_edge(START, "understand_request")
-    workflow.add_edge("understand_request", "retrieve_client")
+    workflow.add_conditional_edges("understand_request", route_after_setup, {"show_setup": "prepare_account_setup", "retrieve_client": "retrieve_client"})
+    workflow.add_edge("prepare_account_setup", END)
     workflow.add_edge("retrieve_client", "determine_requirements")
     workflow.add_edge("determine_requirements", "prepare_ui")
     workflow.add_conditional_edges(
