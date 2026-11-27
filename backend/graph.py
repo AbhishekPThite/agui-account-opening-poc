@@ -379,10 +379,12 @@ def build_journey_status(state: AccountOpeningState) -> dict[str, Any]:
         "IN_PROGRESS" if current_stage == "RISK_PROFILE" else
         "ACTION_REQUIRED"
     )
+    product_selected = bool(state.get("product_type") or state.get("account_type"))
     statuses["FEATURES"] = (
         "COMPLETED" if features_complete else
         "IN_PROGRESS" if current_stage == "FEATURES" else
-        "ACTION_REQUIRED"
+        "ACTION_REQUIRED" if product_selected else
+        "PENDING"
     )
     statuses["SUMMARY"] = (
         "COMPLETED" if draft_created else
