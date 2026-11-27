@@ -283,6 +283,12 @@ python -m unittest test_requirements_engine.py -v
 ```
 
 
+## Angular journey progress tracker (Milestone 8E.2)
+
+The Angular shell renders a responsive five-stage progress tracker whenever the backend includes `ui.journeyStatus`. It displays Profile, Account Details, Risk Profile, Features and Summary, along with the current status and completed-stage count.
+
+The tracker is presentation-only: Angular does not calculate or mutate workflow progress. It consumes the backend's stage statuses and renders them with accessible list semantics. On narrow screens, the tracker switches to a vertical layout.
+
 ## Journey status model (Milestone 8E.1)
 
 The backend now derives a compact journey-progress model from LangGraph state and attaches it to each rendered UI payload as `ui.journeyStatus`.
