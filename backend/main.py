@@ -7,19 +7,26 @@ from ag_ui_langgraph import LangGraphAgent, add_langgraph_fastapi_endpoint
 
 logging.basicConfig(level=logging.INFO)
 
-from checkpointer import checkpointer_backend, close_checkpointer
+from checkpointer import (
+    checkpointer_backend,
+    close_checkpointer,
+    setup_checkpointer,
+)
 from graph import graph
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    yield
-    close_checkpointer()
+    await setup_checkpointer()
+    try:
+        yield
+    finally:
+        await close_checkpointer()
 
 
 app = FastAPI(
     title="Wealth Account Opening AG-UI POC",
-    version="0.3.0",
+    version="0.3.1",
     lifespan=lifespan,
 )
 
