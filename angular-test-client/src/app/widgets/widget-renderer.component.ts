@@ -1,3 +1,4 @@
+import { CommonModule } from '@angular/common';
 import {
   Component,
   ComponentRef,
@@ -8,6 +9,7 @@ import {
   Output,
   SimpleChanges,
   Type,
+  ViewChild,
   ViewContainerRef
 } from '@angular/core';
 import { AgentUI, AgentWidgetInstance } from '../models/agent-ui.model';
@@ -16,6 +18,7 @@ import { WIDGET_REGISTRY } from './widget-registry';
 @Component({
   selector: 'app-widget-renderer',
   standalone: true,
+  imports: [CommonModule],
   template: `
     <ng-container #widgetHost></ng-container>
     <section class="unsupported" *ngIf="unsupportedWidget">
@@ -29,13 +32,13 @@ import { WIDGET_REGISTRY } from './widget-registry';
 export class WidgetRendererComponent implements OnChanges, OnDestroy {
   @Input() ui: AgentUI | null = null;
   @Output() submit = new EventEmitter<Record<string, unknown>>();
+  @ViewChild('widgetHost', { read: ViewContainerRef, static: true })
+  private widgetHost!: ViewContainerRef;
 
   private componentRef?: ComponentRef<AgentWidgetInstance>;
   private activeWidgetId?: string;
   private submitSubscription?: { unsubscribe(): void };
   unsupportedWidget = '';
-
-  constructor(private readonly viewContainer: ViewContainerRef) {}
 
   ngOnChanges(_changes: SimpleChanges): void {
     if (!this.ui) {
@@ -56,7 +59,7 @@ export class WidgetRendererComponent implements OnChanges, OnDestroy {
 
     if (!this.componentRef || this.activeWidgetId !== widgetId) {
       this.clearWidget();
-      this.componentRef = this.viewContainer.createComponent(
+      this.componentRef = this.widgetHost.createComponent(
         componentType as Type<AgentWidgetInstance>
       );
       this.activeWidgetId = widgetId;
@@ -77,7 +80,7 @@ export class WidgetRendererComponent implements OnChanges, OnDestroy {
   private clearWidget(): void {
     this.submitSubscription?.unsubscribe();
     this.submitSubscription = undefined;
-    this.viewContainer.clear();
+    this.widgetHost?.clear();
     this.componentRef = undefined;
     this.activeWidgetId = undefined;
   }
