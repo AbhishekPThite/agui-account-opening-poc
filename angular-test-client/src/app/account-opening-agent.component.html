@@ -2,38 +2,34 @@
     <header class="hero">
         <div class="eyebrow">WEALTH TECHNOLOGY · AG-UI PROOF OF CONCEPT</div>
         <h1>Account Opening Assistant</h1>
-        <p>Test the agent-to-UI interaction with a mock joint brokerage account journey.</p>
+        <p>Test the agent-to-UI interaction with a metadata-driven widget registry.</p>
         <div class="status"><span class="dot"></span> Angular test client · API at localhost:8000</div>
     </header>
-    <section class="panel"><label for="request">What would you like to do?</label><textarea id="request" rows="3"
-            [ngModel]="prompt()" (ngModelChange)="prompt.set($event)"></textarea><button class="primary"
-            (click)="start()" [disabled]="busy()">{{busy()?'Agent working…':'Start account opening'}}</button>
-        <p class="hint">Start with the prefilled request. The agent should ask for joint-owner details.</p>
+
+    <section class="panel">
+        <label for="request">What would you like to do?</label>
+        <textarea id="request" rows="3" [ngModel]="prompt()" (ngModelChange)="prompt.set($event)"></textarea>
+        <button class="primary" (click)="start()" [disabled]="busy()">
+            {{busy() ? 'Agent working…' : 'Start account opening'}}
+        </button>
+        <p class="hint">Try the prefilled joint brokerage request to see the dynamic form.</p>
     </section>
+
     <p class="error" *ngIf="error()">{{error()}}</p>
+
     <section class="panel" *ngIf="assistantText().length">
         <h2>Agent response</h2>
         <p *ngFor="let message of assistantText()">{{message}}</p>
     </section>
-    <section class="panel" *ngIf="uiState()?.['widgetId']==='JOINT_OWNER_FORM'">
-        <div class="eyebrow">DYNAMIC UI STATE</div>
-        <h2>{{uiState()?.['title']}}</h2>
-        <p>{{uiState()?.['description']}}</p>
-        <div class="field"><label for="owner">Joint owner full name</label><input id="owner" [ngModel]="ownerName()"
-                (ngModelChange)="ownerName.set($event)" placeholder="e.g. Jordan Morgan"></div>
-        <div class="field"><label for="residency">Joint owner tax residency</label><input id="residency"
-                [ngModel]="taxResidency()" (ngModelChange)="taxResidency.set($event)" placeholder="e.g. Singapore">
-        </div><button class="primary" (click)="submitJointOwner()"
-            [disabled]="busy()||!ownerName().trim()||!taxResidency().trim()">Submit joint-owner details</button>
+
+    <section class="panel" *ngIf="uiState()">
+        <app-widget-renderer [ui]="uiState()" (submit)="submitWidget($event)"></app-widget-renderer>
     </section>
-    <section class="panel success" *ngIf="uiState()?.['widgetId']==='DRAFT_CONFIRMATION'">
-        <div class="eyebrow">POC COMPLETE</div>
-        <h2>Draft created</h2>
-        <p>A mock account-opening draft was created. No real account has been opened.</p>
-    </section>
+
     <details class="panel" *ngIf="events().length">
         <summary>AG-UI event trace ({{events().length}} events)</summary>
-        <pre>{{events()|json}}</pre>
+        <pre>{{events() | json}}</pre>
     </details>
+
     <footer>Demo only · Mock client and draft services · Do not enter real customer data</footer>
 </main>
