@@ -43,6 +43,10 @@ export class AccountOpeningAgentComponent {
   }
 
   submitWidget(payload: Record<string, unknown>): void {
+    if (payload['__profileAction'] === 'CONFIRM') {
+      this.send('POC_FORM_SUBMISSION:' + JSON.stringify({ formId: 'PROFILE_CONFIRMATION' }));
+      return;
+    }
     const action = payload['__approvalAction'];
     if (action === 'APPROVE' || action === 'REJECT') {
       this.resumeApproval(action);
