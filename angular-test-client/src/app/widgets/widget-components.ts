@@ -64,10 +64,11 @@ export class DynamicFormComponent implements OnChanges {
   values: Record<string, unknown> = {};
 
   ngOnChanges(_changes: SimpleChanges): void {
-    // Materialize backend defaults into the form model so they are both visible
-    // and included in the structured submission, even when the user leaves them unchanged.
+    // A new backend UI snapshot is authoritative. Rebuild the form model so
+    // conversationally extracted values replace the previous defaults.
+    this.values = {};
     for (const field of this.ui?.fields ?? []) {
-      if (this.values[field.name] === undefined && field.defaultValue !== undefined) {
+      if (field.defaultValue !== undefined) {
         this.values[field.name] = field.defaultValue;
       }
     }
