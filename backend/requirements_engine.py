@@ -65,9 +65,12 @@ def build_registration_requirements(registration_type: str) -> dict[str, Any]:
 
 PRODUCT_FEATURES: dict[str, tuple[dict[str, Any], ...]] = {
     "BROKERAGE": (
-        {"name": "tradingAccess", "label": "Trading access", "type": "select", "required": True, "options": ["STANDARD", "ACTIVE"]},
-        {"name": "cashManagement", "label": "Cash management", "type": "select", "required": True, "options": ["YES", "NO"]},
-        {"name": "dividendReinvestment", "label": "Dividend reinvestment", "type": "select", "required": True, "options": ["YES", "NO"]},
+        {"name": "onlineAccess", "label": "Online access preference", "type": "text", "required": False, "placeholder": "Capture online access preference"},
+        {"name": "eDelivery", "label": "E-Delivery preference", "type": "text", "required": False, "placeholder": "Capture electronic delivery preference"},
+        {"name": "cashSweepOption", "label": "Cash sweep option", "type": "text", "required": False, "placeholder": "Capture selected cash sweep option"},
+        {"name": "marginInformation", "label": "Margin information", "type": "text", "required": False, "placeholder": "Capture margin-related details"},
+        {"name": "taxLotMethod", "label": "Tax lot accounting method", "type": "text", "required": False, "placeholder": "e.g. FIFO or LIFO"},
+        {"name": "proxyElection", "label": "Proxy election", "type": "text", "required": False, "placeholder": "Capture proxy voting preference"},
     ),
     "CREDIT_FACILITY": (
         {"name": "requestedCreditLimit", "label": "Requested credit limit (account currency)", "type": "number", "required": True, "placeholder": "Enter amount in the account currency"},
