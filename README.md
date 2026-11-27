@@ -524,3 +524,8 @@ Manual checks:
 5. During application review, request a change. Verify the graph resumes the pending interrupt, generates a revised summary and requires a new explicit approval.
 6. Verify no conversational message alone completes a required stage or creates a draft.
 
+
+
+### Upfront conversational prefill across the journey
+
+The first natural-language request is used to extract explicit values for account setup, risk assessment and product features (when the product type is identified). Risk and product-feature values are stored in workflow state and rendered as defaults when those later screens are reached. This is prefill only: mandatory forms still require explicit review and submission, and no suitability, eligibility or approval decision is made by the LLM.
