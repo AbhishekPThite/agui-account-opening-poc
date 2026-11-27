@@ -61,3 +61,28 @@ def build_registration_requirements(registration_type: str) -> dict[str, Any]:
         })
 
     return {"registrationType": normalized, "requirements": resolved}
+
+
+PRODUCT_FEATURES: dict[str, tuple[dict[str, Any], ...]] = {
+    "BROKERAGE": (
+        {"name": "tradingAccess", "label": "Trading access", "type": "select", "required": True, "options": ["STANDARD", "ACTIVE"]},
+        {"name": "cashManagement", "label": "Cash management", "type": "select", "required": True, "options": ["YES", "NO"]},
+        {"name": "dividendReinvestment", "label": "Dividend reinvestment", "type": "select", "required": True, "options": ["YES", "NO"]},
+    ),
+    "CREDIT_FACILITY": (
+        {"name": "requestedCreditLimit", "label": "Requested credit limit", "type": "number", "required": True, "placeholder": "Enter requested amount"},
+        {"name": "collateralType", "label": "Proposed collateral", "type": "select", "required": True, "options": ["SECURITIES", "CASH", "OTHER"]},
+        {"name": "facilityPurpose", "label": "Facility purpose", "type": "select", "required": True, "options": ["LIQUIDITY", "INVESTMENT", "OTHER"]},
+    ),
+}
+
+
+def build_product_feature_requirements(product_type: str) -> dict[str, Any]:
+    """Return the POC feature-capture schema for the selected product."""
+    normalized = str(product_type or "").strip().upper()
+    if normalized not in PRODUCT_FEATURES:
+        raise ValueError(f"Unsupported product type: {product_type!r}")
+    return {
+        "productType": normalized,
+        "fields": [dict(field) for field in PRODUCT_FEATURES[normalized]],
+    }
