@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, patch
 
 from langchain_core.messages import HumanMessage
 from graph import understand_request
+from model_client import extract_account_request
 
 
 class ConversationalAccountSetupTests(unittest.TestCase):
@@ -47,6 +48,20 @@ class ConversationalAccountSetupTests(unittest.TestCase):
         self.assertEqual(result["ownership"], "JOINT")
         self.assertEqual(result["account_nickname"], "Family Portfolio")
         self.assertEqual(result["margin_option"], "MARGIN")
+
+    def test_account_extractor_rejects_unsupported_margin_enum(self):
+        with patch("model_client.extract_structured_data", new_callable=AsyncMock) as extractor:
+            extractor.return_value = {
+                "client_id": "",
+                "account_type": "",
+                "ownership": "",
+                "joint_owner_name": "",
+                "joint_owner_tax_residency": "",
+                "account_nickname": "",
+                "margin_option": "SPECIAL_MARGIN",
+            }
+            result = asyncio.run(extract_account_request("Use a special margin option."))
+        self.assertEqual(result["margin_option"], "")
 
     def test_unsupported_margin_value_does_not_overwrite_current_value(self):
         result = self.run_extraction(
