@@ -296,9 +296,10 @@ def prepare_profile_assessment(state: AccountOpeningState) -> dict[str, Any]:
 def determine_requirements(state: AccountOpeningState) -> dict[str, Any]:
     """Resolve the registration-specific requirement matrix.
 
-    This node classifies requirements only. Completion of primary-owner data and
-    client-profile confirmation is handled by the profile gate; beneficiary and
-    risk-assessment capture are implemented in later journey increments.
+    This node classifies requirements only. Primary-owner data and client-profile
+    confirmation are handled by the profile gate; joint-owner capture is conditional,
+    and optional beneficiary capture follows when owner requirements are satisfied.
+    Risk-assessment capture remains a later mandatory journey gate.
     """
     registration_type = state.get("ownership", "INDIVIDUAL")
     requirements = build_registration_requirements(registration_type)
