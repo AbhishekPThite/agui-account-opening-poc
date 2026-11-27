@@ -11,7 +11,7 @@ from langgraph.graph.message import add_messages
 from checkpointer import checkpointer
 from langgraph.types import interrupt
 from model_client import extract_account_request, model
-from requirements_engine import build_registration_requirements
+from requirements_engine import build_registration_requirements, build_product_feature_requirements
 
 
 class AccountOpeningState(TypedDict, total=False):
@@ -44,6 +44,8 @@ class AccountOpeningState(TypedDict, total=False):
     beneficiary_capture_completed: bool
     risk_assessment: dict[str, Any]
     risk_assessment_completed: bool
+    product_features: dict[str, Any]
+    product_features_completed: bool
 
 
 EDITABLE_FIELDS = {
@@ -118,6 +120,7 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
     beneficiary_capture = form_submission and extracted.get("formId") == "BENEFICIARY_CAPTURE"
     beneficiary_skip = form_submission and extracted.get("formId") == "BENEFICIARY_SKIP"
     risk_assessment_submission = form_submission and extracted.get("formId") == "RISK_ASSESSMENT"
+    product_features_submission = form_submission and extracted.get("formId") == "PRODUCT_FEATURES"
     risk_fields = ("investmentObjectives", "experienceLevel", "riskTolerance", "investmentTimeHorizon", "liquidityNeeds", "productKnowledge")
     submitted_risk = {key: str(extracted.get(key, "")).strip() for key in risk_fields if str(extracted.get(key, "")).strip()} if risk_assessment_submission else {}
     if risk_assessment_submission:
@@ -145,6 +148,30 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
         ]
         if not submitted_risk["investmentObjectives"] or invalid_risk:
             raise ValueError("Risk assessment contains invalid values: " + ", ".join(invalid_risk or ["investmentObjectives"]))
+    submitted_features: dict[str, Any] = {}
+    if product_features_submission:
+        product_type_for_features = str(state.get("product_type", state.get("account_type", ""))).upper()
+        feature_schema = build_product_feature_requirements(product_type_for_features)
+        feature_fields = feature_schema["fields"]
+        missing_features = [field["name"] for field in feature_fields if not str(extracted.get(field["name"], "")).strip()]
+        if missing_features:
+            raise ValueError("Product features are incomplete. Required fields: " + ", ".join(missing_features))
+        for field in feature_fields:
+            name = field["name"]
+            value = str(extracted[name]).strip()
+            if field["type"] == "select":
+                value = value.upper()
+                if value not in field["options"]:
+                    raise ValueError(f"Unsupported value for {name}: {value}")
+            elif name == "requestedCreditLimit":
+                try:
+                    amount = float(value.replace(",", ""))
+                except ValueError as exc:
+                    raise ValueError("Requested credit limit must be a valid number.") from exc
+                if amount <= 0:
+                    raise ValueError("Requested credit limit must be greater than zero.")
+                value = amount
+            submitted_features[name] = value
     beneficiary_values = {
         key: str(extracted.get(key, "")).strip()
         for key in ("beneficiaryFullName", "beneficiaryRelationship", "beneficiaryDateOfBirth")
@@ -191,6 +218,8 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
         ),
         "risk_assessment": {**state.get("risk_assessment", {}), **submitted_risk},
         "risk_assessment_completed": risk_assessment_submission or state.get("risk_assessment_completed", False),
+        "product_features": {**state.get("product_features", {}), **submitted_features},
+        "product_features_completed": product_features_submission or state.get("product_features_completed", False),
         "joint_owner_name": str(extracted.get("jointOwnerName") or owner or state.get("joint_owner_name", "")),
         "joint_owner_tax_residency": str(extracted.get("jointOwnerTaxResidency") or tax or state.get("joint_owner_tax_residency", "")),
     }
@@ -383,6 +412,33 @@ def prepare_risk_assessment(state: AccountOpeningState) -> dict[str, Any]:
     return {"ui": ui, "messages": [AIMessage(content="Please confirm the existing investment profile and complete all required risk-assessment fields.")]}
 
 
+def prepare_product_features(state: AccountOpeningState) -> dict[str, Any]:
+    """Render the product-specific feature form from deterministic requirements."""
+    product_type = state.get("product_type", state.get("account_type", ""))
+    schema = build_product_feature_requirements(product_type)
+    existing = state.get("product_features", {})
+    fields = []
+    for definition in schema["fields"]:
+        field = dict(definition)
+        field["defaultValue"] = str(existing.get(field["name"], ""))
+        fields.append(field)
+    title = "Brokerage features" if product_type == "BROKERAGE" else "Credit facility details"
+    description = (
+        "Select the trading and cash-management preferences for this brokerage account. These selections are application preferences, not trading authorization."
+        if product_type == "BROKERAGE"
+        else "Provide the requested facility amount, proposed collateral and intended purpose. These are requests only and do not represent credit approval or collateral acceptance."
+    )
+    ui = {
+        "mode": "FORM",
+        "widgetId": "PRODUCT_FEATURES_FORM",
+        "title": title,
+        "description": description,
+        "fields": fields,
+        "data": {"productType": product_type, "mandatory": True},
+    }
+    return {"ui": ui, "messages": [AIMessage(content=f"Please complete the required {product_type.replace('_', ' ').lower()} product details.")]}
+
+
 def prepare_beneficiary_capture(state: AccountOpeningState) -> dict[str, Any]:
     """Offer an optional single-beneficiary capture step for every registration."""
     beneficiary = state.get("beneficiary_data", {})
@@ -454,6 +510,8 @@ def prepare_ui(state: AccountOpeningState) -> dict[str, Any]:
             "beneficiaryName": state.get("beneficiary_data", {}).get("beneficiaryFullName", "Not provided"),
             "beneficiaryRelationship": state.get("beneficiary_data", {}).get("beneficiaryRelationship", "Not provided"),
             "riskAssessment": state.get("risk_assessment", {}),
+        "productFeatures": state.get("product_features", {}),
+            "productFeatures": state.get("product_features", {}),
             "kycStatus": profile.get("kycStatus", "UNKNOWN"),
             "requirements": "; ".join(
                 f"{item['label']}: {item['status']}"
@@ -666,6 +724,7 @@ def build_graph(
     workflow.add_node("prepare_profile_capture", prepare_profile_capture)
     workflow.add_node("prepare_beneficiary_capture", prepare_beneficiary_capture)
     workflow.add_node("prepare_risk_assessment", prepare_risk_assessment)
+    workflow.add_node("prepare_product_features", prepare_product_features)
     workflow.add_node("determine_requirements", determine_requirements)
     workflow.add_node("prepare_ui", prepare_ui)
     workflow.add_node("await_approval", await_human_approval)
@@ -696,14 +755,17 @@ def build_graph(
             return "beneficiary"
         if not state.get("risk_assessment_completed"):
             return "risk_assessment"
+        if not state.get("product_features_completed"):
+            return "product_features"
         return "review"
 
     workflow.add_conditional_edges(
         "determine_requirements", route_after_data_requirements,
-        {"joint_owner": "prepare_ui", "beneficiary": "prepare_beneficiary_capture", "risk_assessment": "prepare_risk_assessment", "review": "prepare_ui"},
+        {"joint_owner": "prepare_ui", "beneficiary": "prepare_beneficiary_capture", "risk_assessment": "prepare_risk_assessment", "product_features": "prepare_product_features", "review": "prepare_ui"},
     )
     workflow.add_edge("prepare_beneficiary_capture", END)
     workflow.add_edge("prepare_risk_assessment", END)
+    workflow.add_edge("prepare_product_features", END)
     workflow.add_conditional_edges(
         "prepare_ui", route_after_requirements,
         {"wait_for_input": END, "await_approval": "await_approval"},
