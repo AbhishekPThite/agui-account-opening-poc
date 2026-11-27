@@ -129,7 +129,16 @@ The response fields are an assumed POC contract and must be aligned to the actua
 
 **Adaptive profile assessment (Milestone 7)**
 
-After account setup, the graph retrieves this profile and classifies attributes into Completed, Confirmation required and Action required. Populated personal, address, tax residency, employment and investment-profile values are shown for confirmation. Required attributes missing from the response block confirmation. The Angular dashboard is driven by LangGraph UI metadata. KYC status is displayed as retrieved information, not treated as an approval. Profile completeness is assessed deterministically; the LLM does not invent client facts or decide eligibility.
+After account setup, the graph retrieves this profile and classifies attributes into Completed, Confirmation required and Action required. Populated personal, address, tax residency, employment and investment-profile values are shown for confirmation. Required attributes missing from the response block confirmation.
+
+**Adaptive data capture (Milestone 7B)**
+
+- The dashboard offers a profile review/update action. The generated form contains populated fields that require explicit confirmation or correction, plus only missing mandatory fields.
+- A completed submission is merged into two separate workflow buckets: `confirmed_profile_data` and `application_data`. The retrieved `client_profile` response remains unchanged.
+- After submission, the backend retrieves the profile again, reapplies the confirmed application-level overlay, and deterministically reassesses completeness. The RM can then confirm the profile and continue.
+- The draft request carries the confirmed values under `applicationData`; align this assumed field with the actual Java OpenAPI contract.
+- Optional fields that are absent are not requested by this increment. Conditional product/registration-specific fields and richer field types are future extensions.
+- KYC status is displayed as retrieved information, not treated as an approval. Profile completeness is assessed deterministically; the LLM does not invent client facts or decide eligibility.
 
 **Draft creation contract**
 
@@ -147,6 +156,10 @@ Example request:
   "clientId": "C12345",
   "accountType": "BROKERAGE",
   "ownership": "JOINT",
+  "applicationData": {
+    "Personal details|email": "alex.morgan@example.test",
+    "Residential address|city": "New York"
+  },
   "jointOwner": {
     "name": "Jordan Morgan",
     "taxResidency": "Singapore"
@@ -210,6 +223,15 @@ Set `LLM_ENABLED=false` to test the protocol using deterministic regex fallback 
 - Angular resumes the same `threadId` with the interrupt ID and structured payload. The LLM does not decide approval.
 
 The approval payload is a POC interaction contract, not a production authorization mechanism. The draft adapter's idempotency key protects retry behaviour, but it does not replace server-side approval authorization. In production, bind the decision to an authenticated RM identity, application version/hash, entitlements, audit event and server-side approval policy. Never treat a browser-supplied boolean as sufficient authorization.
+
+## Adaptive profile capture test
+
+1. Start an account-opening journey and reach the profile assessment dashboard.
+2. Select **Review or update profile details**. The generated form should show populated profile attributes for confirmation/correction and only missing mandatory attributes for completion.
+3. Change a populated value and fill any required missing values. Submit the form.
+4. Verify the profile dashboard is recalculated, missing mandatory fields are no longer listed, and the original mock Client Experience API response remains unchanged.
+5. Select **Confirm profile and continue**. The journey should proceed to the account-specific requirements and application review.
+6. Inspect the draft request in backend logs or a Java stub and verify the confirmed values are carried in `applicationData`.
 
 ## Manual conversational test scenarios
 1. Start a joint brokerage account request, provide joint-owner details, and wait for the summary.
