@@ -29,7 +29,7 @@ Angular UI -> AG-UI adapter (fetch + SSE) -> FastAPI /agent
             | REJECT -> finish without draft
        -> Checkpointer
             | MemorySaver (local default)
-            | PostgresSaver + psycopg connection pool (durable)
+            | AsyncPostgresSaver + async psycopg pool (durable)
 ```
 
 ## Prerequisites
@@ -184,7 +184,7 @@ JAVA_API_CA_CERT=/path/to/internal-ca.crt
 
 Do not put real tokens in source control or share them in chat. The bearer-token setting is a local POC placeholder, not the final enterprise authentication design. In production, use PingFederate/OAuth token acquisition or trusted delegated-token propagation, audience/scope validation, service identity, TLS and secret management.
 
-**Current milestone boundary:** client profile retrieval is routed through this adapter. Draft creation remains a mock function and will be replaced in Milestone 5B. No Pega or Pershing endpoint is called directly by LangGraph.
+**Current milestone boundary:** both client profile retrieval and draft creation are routed through this adapter. In mock mode, draft idempotency is simulated in process memory; the Java service must enforce durable idempotency in HTTP mode. No Pega or Pershing endpoint is called directly by LangGraph.
 
 ## Internal model endpoint
 The POC uses `langchain-openai` against an OpenAI-compatible internal endpoint. Configure `OPENAI_BASE_URL`, `OPENAI_MODEL`, and `OPENAI_API_KEY` in `backend/.env`. Set `INTERNAL_CA_CERT` to your organization's CA certificate path if required. TLS verification remains enabled.
@@ -195,7 +195,7 @@ Set `LLM_ENABLED=false` to test the protocol using deterministic regex fallback 
 - When required fields are complete, the graph sets `approval_status=PENDING` and renders the application summary.
 - The `await_human_approval` node calls LangGraph `interrupt()`; no draft-creation side effect occurs before the pause.
 - The review interrupt supports three explicit actions:
-  - `APPROVE`: resume and create the mock draft.
+  - `APPROVE`: resume and call the Draft Application Experience API adapter.
   - `REJECT`: resume and finish without a draft.
   - `EDIT`: resume with a natural-language change request, extract only non-empty fields, update the checkpointed state, re-run client lookup and deterministic requirement checks, then render a new summary.
 - Every edited summary increments `reviewVersion` and requires a new approval interrupt. Previous approval does not carry forward.
@@ -206,13 +206,13 @@ The approval payload is a POC interaction contract, not a production authorizati
 ## Manual conversational test scenarios
 1. Start a joint brokerage account request, provide joint-owner details, and wait for the summary.
 2. Enter **“Change the base currency to SGD”** in the conversation box. Confirm the new summary shows SGD and a higher review version.
-3. Confirm the edited application. The mock draft should show SGD.
+3. Confirm the edited application. The draft confirmation should show the API-returned application ID and status.
 4. Start another journey, change joint-owner tax residency to Singapore, and verify the revised summary before approval.
 5. Reject a review and verify that no draft is created.
 6. Try an unclear edit. The agent should ask for a specific field and value rather than silently changing state.
 
 ## Important limitations and controls
-- Java Client and Draft Application Experience API integration is configurable; mock mode is the default. The HTTP contract and response fields are hypothetical and must be aligned with the real Java OpenAPI specification before production use.
+- Java Client and Draft Application Experience API integration is configurable; mock mode is the default. The HTTP contract and response fields are hypothetical and must be aligned with the real Java OpenAPI specification before production use. Mock draft idempotency is process-local only; the Java API must implement durable key storage.
 - The extraction fallback supports only a small set of common edits. LLM extraction quality depends on the configured model.
 - PostgreSQL checkpointing persists LangGraph state and interrupts, but does not replace a business-owned application database or audit system. Keep authoritative application records and approval evidence in the appropriate Java/Pega services.
 - The local Docker Compose credentials are intentionally simple and must never be used outside local development.
