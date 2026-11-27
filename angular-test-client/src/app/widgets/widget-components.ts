@@ -64,7 +64,7 @@ export class DynamicFormComponent {
     const fields = this.ui.fields ?? [];
     return fields.every((field: AgentUIField) => {
       if (!field.required) return true;
-      const value = this.values[field.name];
+      const value = this.values[field.name] ?? field.defaultValue;
       return value !== undefined && value !== null && String(value).trim().length > 0;
     });
   }
