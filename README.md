@@ -7,7 +7,7 @@ A vertical slice for an Angular + AG-UI + FastAPI + LangGraph account-opening ex
 2. FastAPI exposes a LangGraph workflow through the AG-UI protocol.
 3. The graph retrieves a client profile through the configurable Java Client Experience API adapter (mock mode by default) and checks required fields deterministically.
 4. The graph publishes typed UI state for Angular to render through a controlled widget registry.
-5. Angular renders a joint-owner form and application summary from metadata.
+5. Angular renders adaptive profile, joint-owner and optional beneficiary forms plus the application summary from metadata.
 6. LangGraph pauses at an explicit human approval interrupt.
 7. While paused, the RM can request field changes conversationally; the graph applies extracted updates, revalidates requirements and presents a new summary.
 8. Every revised summary requires a fresh explicit approval.
@@ -272,9 +272,9 @@ The backend resolves a deterministic requirements matrix from the selected regis
 | Client profile confirmation | Mandatory | Mandatory | Mandatory | Mandatory |
 | Risk assessment | Mandatory | Mandatory | Mandatory | Mandatory |
 
-The engine returns a normalized requirement list with `key`, `label`, `status` and `required`. The current graph uses the resolved joint-owner rule to decide whether the joint-owner form is needed and includes the resolved matrix in the application review summary. Beneficiary details do not block the journey.
+The engine returns a normalized requirement list with `key`, `label`, `status` and `required`. The graph uses the resolved joint-owner rule to decide whether the joint-owner form is needed and includes the resolved matrix in the application review summary. Beneficiary details do not block the journey and are captured in the optional 8B step.
 
-**Milestone boundary:** this increment establishes and tests the decision matrix. It does not yet implement beneficiary capture or the risk-assessment screen/decision workflow. The existing client-profile confirmation remains a separate gate. Risk assessment is marked mandatory in the matrix but must be implemented as a dedicated journey step before the POC can claim that the full mandatory journey is complete.
+**Milestone boundary:** 8A establishes and tests the decision matrix. The client-profile confirmation gate remains separate. Risk assessment is marked mandatory in the matrix but still needs its dedicated capture and completion gate before the POC can claim that the full mandatory journey is complete.
 
 Run the decision-engine unit tests from the backend directory:
 
