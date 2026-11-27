@@ -14,6 +14,11 @@ export interface RunAgentInput {
     role: 'user';
     content: string;
   }>;
+  resume?: Array<{
+    interruptId: string;
+    status: 'resolved';
+    payload: unknown;
+  }>;
 }
 
 @Injectable({ providedIn: 'root' })
