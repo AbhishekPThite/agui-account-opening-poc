@@ -34,6 +34,8 @@ class AccountOpeningState(TypedDict, total=False):
     account_setup_complete: bool
     profile_confirmed: bool
     profile_assessment: dict[str, Any]
+    confirmed_profile_data: dict[str, Any]
+    application_data: dict[str, Any]
 
 
 EDITABLE_FIELDS = {
@@ -103,6 +105,11 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
     )
     setup_submitted = form_submission and extracted.get("formId") == "ACCOUNT_SETUP"
     profile_confirmed = form_submission and extracted.get("formId") == "PROFILE_CONFIRMATION"
+    profile_capture = form_submission and extracted.get("formId") == "PROFILE_DATA_CAPTURE"
+    captured_values = {
+        str(key): value for key, value in extracted.items()
+        if key not in {"formId", "clientId"} and value is not None and str(value).strip() != ""
+    } if profile_capture else {}
     selected_product = str(extracted.get("productType") or product_type).upper()
     selected_registration = str(extracted.get("registrationType") or ownership).upper()
     return {
@@ -113,7 +120,15 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
         "account_nickname": str(extracted.get("accountNickname") or state.get("account_nickname") or "Brokerage 1"),
         "margin_option": str(extracted.get("marginOption") or state.get("margin_option", "NONE")).upper(),
         "account_setup_complete": setup_submitted or state.get("account_setup_complete", False),
-        "profile_confirmed": profile_confirmed or state.get("profile_confirmed", False),
+        "profile_confirmed": (profile_confirmed or profile_capture) or state.get("profile_confirmed", False),
+        "confirmed_profile_data": {
+            **state.get("confirmed_profile_data", {}),
+            **captured_values,
+        },
+        "application_data": {
+            **state.get("application_data", {}),
+            **captured_values,
+        },
         "joint_owner_name": str(extracted.get("jointOwnerName") or owner or state.get("joint_owner_name", "")),
         "joint_owner_tax_residency": str(extracted.get("jointOwnerTaxResidency") or tax or state.get("joint_owner_tax_residency", "")),
     }
@@ -159,8 +174,13 @@ async def retrieve_client(
 
 
 def assess_client_profile(state: AccountOpeningState) -> dict[str, Any]:
-    """Classify profile completeness using deterministic required-field rules."""
+    """Classify profile completeness using deterministic required-field rules.
+
+    Confirmed values are held separately from the source profile. The source
+    response is never mutated by application-level corrections.
+    """
     profile = state.get("client_profile", {})
+    confirmed = state.get("confirmed_profile_data", {})
     personal = profile.get("personalDetails") or {}
     residential = (profile.get("addresses") or {}).get("residential") or {}
     tax_residencies = profile.get("taxResidencies") or []
@@ -188,19 +208,44 @@ def assess_client_profile(state: AccountOpeningState) -> dict[str, Any]:
         rows: list[dict[str, str]] = []
         missing_required = False
         for field in fields:
-            value = values.get(field)
+            path = f"{name}|{field}"
+            value = confirmed.get(path, values.get(field))
             present = value is not None and value != "" and value != []
             label = field.replace("firstName", "First name").replace("lastName", "Last name").replace("dateOfBirth", "Date of birth").replace("taxIdType", "Tax ID type").replace("taxIdMasked", "Tax ID").replace("investmentObjectives", "Investment objectives")
             display = ", ".join(map(str, value)) if isinstance(value, list) else (str(value) if present else "Not provided")
             rows.append({"label": label, "value": display})
             if present:
-                confirmations.append({"label": f"{name}: {label}", "value": display})
+                confirmations.append({"label": f"{name}: {label}", "value": display, "field": path, "required": field in required})
             elif field in required:
                 missing_required = True
-                actions.append({"label": f"{name}: {label}", "value": "Required"})
+                actions.append({"label": f"{name}: {label}", "value": "Required", "field": path, "required": True})
         sections.append({"name": name, "status": "ACTION_REQUIRED" if missing_required else "CONFIRMATION_REQUIRED" if any(r["value"] != "Not provided" for r in rows) else "NOT_PROVIDED", "fields": rows})
     return {"profile_assessment": {"completed": completed, "confirmationRequired": confirmations,
             "actionRequired": actions, "sections": sections, "isComplete": not actions}}
+    
+def prepare_profile_capture(state: AccountOpeningState) -> dict[str, Any]:
+    """Build a form containing only profile fields that need confirmation or completion."""
+    assessment = state.get("profile_assessment", {})
+    fields: list[dict[str, Any]] = []
+    confirmed = state.get("confirmed_profile_data", {})
+    for item in assessment.get("confirmationRequired", []) + assessment.get("actionRequired", []):
+        fields.append({
+            "name": item["field"],
+            "label": item["label"],
+            "type": "text",
+            "required": bool(item.get("required")),
+            "placeholder": "Enter value" if item.get("value") == "Required" else "Confirm or correct the retrieved value",
+            "defaultValue": "" if item.get("value") == "Required" else str(item.get("value", "")),
+        })
+    ui = {
+        "mode": "FORM",
+        "widgetId": "PROFILE_DATA_CAPTURE",
+        "title": "Confirm or complete client information",
+        "description": "Only missing mandatory and populated confirmation-required fields are shown. Your entries are stored as application data; the source client profile is not overwritten.",
+        "fields": fields,
+        "data": {"clientId": state.get("client_id", "")},
+    }
+    return {"ui": ui, "messages": [AIMessage(content="Please confirm or correct the populated fields and complete the mandatory fields shown.")]}
 
 
 def prepare_profile_assessment(state: AccountOpeningState) -> dict[str, Any]:
@@ -468,6 +513,7 @@ def build_graph(
     workflow.add_node("retrieve_client", retrieve_client_node)
     workflow.add_node("assess_client_profile", assess_client_profile)
     workflow.add_node("prepare_profile_assessment", prepare_profile_assessment)
+    workflow.add_node("prepare_profile_capture", prepare_profile_capture)
     workflow.add_node("determine_requirements", determine_requirements)
     workflow.add_node("prepare_ui", prepare_ui)
     workflow.add_node("await_approval", await_human_approval)
@@ -483,8 +529,13 @@ def build_graph(
     )
     workflow.add_edge("prepare_account_setup", END)
     workflow.add_edge("retrieve_client", "assess_client_profile")
-    workflow.add_edge("assess_client_profile", "prepare_profile_assessment")
+    workflow.add_conditional_edges(
+        "assess_client_profile",
+        lambda state: "capture" if not state.get("profile_confirmed") else "dashboard",
+        {"capture": "prepare_profile_assessment", "dashboard": "prepare_profile_assessment"},
+    )
     workflow.add_edge("prepare_profile_assessment", END)
+    workflow.add_edge("prepare_profile_capture", END)
     workflow.add_edge("determine_requirements", "prepare_ui")
     workflow.add_conditional_edges(
         "prepare_ui", route_after_requirements,
