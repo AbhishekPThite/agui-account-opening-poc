@@ -221,7 +221,10 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
             raise ValueError("Risk assessment contains invalid values: " + ", ".join(invalid_risk or ["investmentObjectives"]))
     submitted_features: dict[str, Any] = {}
     if product_features_submission or product_features_prefill or initial_journey_prefill:
-        product_type_for_features = str(state.get("product_type", state.get("account_type", ""))).upper()
+        product_type_for_features = str(
+            extracted.get("account_type") or extracted.get("productType")
+            or state.get("product_type") or state.get("account_type") or ""
+        ).upper()
         feature_schema = build_product_feature_requirements(product_type_for_features)
         feature_fields = feature_schema["fields"]
         for field in feature_fields:
