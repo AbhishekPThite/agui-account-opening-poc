@@ -10,7 +10,7 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 from checkpointer import checkpointer
 from langgraph.types import interrupt
-from model_client import extract_account_request, model
+from model_client import extract_account_request, extract_risk_assessment, model
 from requirements_engine import build_registration_requirements, build_product_feature_requirements
 
 
@@ -81,7 +81,11 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
         except (json.JSONDecodeError, IndexError):
             raise ValueError("The submitted account setup form could not be read.")
     elif model is not None and text:
-        extracted = await extract_account_request(text)
+        active_widget = state.get("ui", {}).get("widgetId")
+        if active_widget == "RISK_ASSESSMENT_FORM":
+            extracted = await extract_risk_assessment(text)
+        else:
+            extracted = await extract_account_request(text)
 
     client_id = extracted.get("client_id") or extracted.get("clientId") or extract_value(
         r"\bclient\s+([A-Z0-9-]+)", text, state.get("client_id", "C12345")
@@ -121,9 +125,17 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
     beneficiary_capture = form_submission and extracted.get("formId") == "BENEFICIARY_CAPTURE"
     beneficiary_skip = form_submission and extracted.get("formId") == "BENEFICIARY_SKIP"
     risk_assessment_submission = form_submission and extracted.get("formId") == "RISK_ASSESSMENT"
+    risk_assessment_prefill = (
+        not form_submission
+        and state.get("ui", {}).get("widgetId") == "RISK_ASSESSMENT_FORM"
+    )
     product_features_submission = form_submission and extracted.get("formId") == "PRODUCT_FEATURES"
     risk_fields = ("investmentObjectives", "investmentTimeHorizon", "liquidityNeeds", "riskTolerance")
-    submitted_risk = {key: str(extracted.get(key, "")).strip() for key in risk_fields if str(extracted.get(key, "")).strip()} if risk_assessment_submission else {}
+    submitted_risk = {
+        key: str(extracted.get(key, "")).strip()
+        for key in risk_fields
+        if str(extracted.get(key, "")).strip()
+    } if (risk_assessment_submission or risk_assessment_prefill) else {}
     if risk_assessment_submission:
         missing_risk = [key for key in risk_fields if not submitted_risk.get(key)]
         if missing_risk:
