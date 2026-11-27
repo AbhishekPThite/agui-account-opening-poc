@@ -12,6 +12,7 @@ A vertical slice for an Angular + AG-UI + FastAPI + LangGraph account-opening ex
 7. While paused, the RM can request field changes conversationally; the graph applies extracted updates, revalidates requirements and presents a new summary.
 8. Every revised summary requires a fresh explicit approval.
 9. Only an approved review reaches mock draft creation.
+10. Checkpoints can be stored in PostgreSQL so thread state and pending interrupts survive backend restarts.
 
 No real account is opened and no production system is called.
 
@@ -26,12 +27,16 @@ Angular UI -> AG-UI adapter (fetch + SSE) -> FastAPI /agent
             | EDIT -> extract changes -> revalidate -> new summary -> interrupt()
             | APPROVE -> mock draft creation
             | REJECT -> finish without draft
+       -> Checkpointer
+            | MemorySaver (local default)
+            | PostgresSaver + psycopg connection pool (durable)
 ```
 
 ## Prerequisites
 - Python 3.12 (also compatible with 3.11)
 - Node.js 20+
 - Angular CLI matching your application version
+- Docker Desktop / Docker Engine for the local PostgreSQL option
 
 ## Run backend
 ```bash
@@ -40,11 +45,56 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
-# Set OPENAI_API_KEY in .env; never commit .env
+# Set your internal model credentials in .env; never commit .env
 uvicorn main:app --reload --port 8000
 ```
 Health: http://localhost:8000/health  
 AG-UI endpoint: `POST http://localhost:8000/agent`
+
+## Configure durable PostgreSQL checkpointing
+
+The default `CHECKPOINTER_BACKEND=memory` preserves the previous local behaviour. To test durable state:
+
+1. Start the local PostgreSQL container from the repository root:
+
+   ```bash
+   docker compose -f backend/docker-compose.yml up -d
+   ```
+
+2. In `backend/.env`, set:
+
+   ```dotenv
+   CHECKPOINTER_BACKEND=postgres
+   DATABASE_URL=postgresql://agui_poc:agui_poc_dev_only@localhost:5432/agui_poc
+   POSTGRES_POOL_MIN_SIZE=1
+   POSTGRES_POOL_MAX_SIZE=10
+   LANGGRAPH_STRICT_MSGPACK=true
+   ```
+
+   The credentials above are for local development only. Use a managed PostgreSQL service, secret manager, TLS and a least-privilege database role in shared environments.
+
+3. Install dependencies and restart FastAPI:
+
+   ```bash
+   pip install -r requirements.txt
+   uvicorn main:app --reload --port 8000
+   ```
+
+4. Check the backend health response. It should report `"checkpointer": "postgres"`.
+
+The application initializes the PostgreSQL connection pool and runs the LangGraph checkpoint schema migrations during startup. It uses `PostgresSaver` with Psycopg 3, a connection pool, dictionary row factory, autocommit and prepared statements disabled for compatibility. The pool is closed on application shutdown. PostgreSQL tables are created by the checkpointer's `setup()` call.
+
+## Persistence test — survive a backend restart
+
+1. Start a new account-opening journey and reach the application summary / pending approval screen.
+2. Keep the Angular browser tab open. Do not click Confirm or Reject.
+3. Stop and restart only the FastAPI process. Do not stop or delete the PostgreSQL container.
+4. Verify `GET /health` reports `"checkpointer": "postgres"`.
+5. Use the existing review screen to request an edit, for example **“Change the base currency to SGD”**.
+6. Confirm that the same thread resumes, the saved fields remain present, and the revised summary reflects SGD.
+7. Confirm the revised summary and verify the mock draft contains SGD.
+
+This verifies persistence of LangGraph thread state and interrupt data across a backend process restart. The browser tab is deliberately kept open because the demo currently stores the thread ID and pending interrupt ID in Angular component memory. Refresh recovery and cross-device thread discovery are separate capabilities and are not implemented yet.
 
 ## Internal model endpoint
 The POC uses `langchain-openai` against an OpenAI-compatible internal endpoint. Configure `OPENAI_BASE_URL`, `OPENAI_MODEL`, and `OPENAI_API_KEY` in `backend/.env`. Set `INTERNAL_CA_CERT` to your organization's CA certificate path if required. TLS verification remains enabled.
@@ -63,7 +113,7 @@ Set `LLM_ENABLED=false` to test the protocol using deterministic regex fallback 
 
 The approval payload is a POC interaction contract, not a production authorization mechanism. In production, bind the decision to an authenticated RM identity, application version/hash, entitlements, audit event and server-side approval policy. Never treat a browser-supplied boolean as sufficient authorization.
 
-## Manual test scenarios
+## Manual conversational test scenarios
 1. Start a joint brokerage account request, provide joint-owner details, and wait for the summary.
 2. Enter **“Change the base currency to SGD”** in the conversation box. Confirm the new summary shows SGD and a higher review version.
 3. Confirm the edited application. The mock draft should show SGD.
@@ -74,15 +124,17 @@ The approval payload is a POC interaction contract, not a production authorizati
 ## Important limitations and controls
 - Client profile and draft creation are mock implementations in `backend/graph.py`.
 - The extraction fallback supports only a small set of common edits. LLM extraction quality depends on the configured model.
-- `MemorySaver` is local-only; state is lost when the backend process restarts and it is not suitable for multi-instance deployment. Use a durable LangGraph checkpointer (for example, Postgres) before production.
-- The Angular demo keeps the pending interrupt ID in component memory. A page refresh requires recovering the pending interrupt from server-side state before allowing a decision.
+- PostgreSQL checkpointing persists LangGraph state and interrupts, but does not replace a business-owned application database or audit system. Keep authoritative application records and approval evidence in the appropriate Java/Pega services.
+- The local Docker Compose credentials are intentionally simple and must never be used outside local development.
+- `MemorySaver` remains the default unless `CHECKPOINTER_BACKEND=postgres` is selected.
+- The Angular demo keeps the thread ID and pending interrupt ID in component memory. A page refresh requires recovering the pending interrupt from server-side state before allowing a decision.
 - Add authentication, authorization, CSRF/origin controls, rate limiting, audit, PII controls and entitlement checks before connecting real wealth APIs.
 - Never use agent output as authorization. Draft submission and account opening must remain behind existing Java/Pega controls.
 - This is a development starter, not a production-ready account-opening system.
 
 ## Next increments
 1. Replace mock profile/draft functions with Java Experience API clients.
-2. Add PostgreSQL checkpointing and persistent application state.
+2. Add authenticated thread ownership, refresh recovery and durable application identifiers.
 3. Propagate authenticated RM identity and entitlements into the workflow.
 4. Integrate Pega workflow and downstream custody adapters.
 5. Add integration tests, tracing, audit, retries and OpenShift deployment manifests.
