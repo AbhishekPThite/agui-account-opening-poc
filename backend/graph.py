@@ -120,6 +120,31 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
     risk_assessment_submission = form_submission and extracted.get("formId") == "RISK_ASSESSMENT"
     risk_fields = ("investmentObjectives", "experienceLevel", "riskTolerance", "investmentTimeHorizon", "liquidityNeeds", "productKnowledge")
     submitted_risk = {key: str(extracted.get(key, "")).strip() for key in risk_fields if str(extracted.get(key, "")).strip()} if risk_assessment_submission else {}
+    if risk_assessment_submission:
+        missing_risk = [key for key in risk_fields if not submitted_risk.get(key)]
+        if missing_risk:
+            raise ValueError("Risk assessment is incomplete. Required fields: " + ", ".join(missing_risk))
+        submitted_risk["investmentObjectives"] = [
+            value.strip().upper() for value in submitted_risk["investmentObjectives"].split(",") if value.strip()
+        ]
+        submitted_risk["experienceLevel"] = submitted_risk["experienceLevel"].upper()
+        submitted_risk["riskTolerance"] = submitted_risk["riskTolerance"].upper()
+        submitted_risk["investmentTimeHorizon"] = submitted_risk["investmentTimeHorizon"].upper()
+        submitted_risk["liquidityNeeds"] = submitted_risk["liquidityNeeds"].upper()
+        submitted_risk["productKnowledge"] = submitted_risk["productKnowledge"].upper()
+        allowed_risk_values = {
+            "experienceLevel": {"BEGINNER", "INTERMEDIATE", "EXPERIENCED"},
+            "riskTolerance": {"CONSERVATIVE", "MODERATE", "AGGRESSIVE"},
+            "investmentTimeHorizon": {"UNDER_3_YEARS", "3_TO_5_YEARS", "5_TO_10_YEARS", "OVER_10_YEARS"},
+            "liquidityNeeds": {"LOW", "MEDIUM", "HIGH"},
+            "productKnowledge": {"LIMITED", "GOOD", "EXTENSIVE"},
+        }
+        invalid_risk = [
+            key for key, allowed in allowed_risk_values.items()
+            if submitted_risk[key] not in allowed
+        ]
+        if not submitted_risk["investmentObjectives"] or invalid_risk:
+            raise ValueError("Risk assessment contains invalid values: " + ", ".join(invalid_risk or ["investmentObjectives"]))
     beneficiary_values = {
         key: str(extracted.get(key, "")).strip()
         for key in ("beneficiaryFullName", "beneficiaryRelationship", "beneficiaryDateOfBirth")
