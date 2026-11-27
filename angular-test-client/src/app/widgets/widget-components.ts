@@ -120,10 +120,6 @@ export class DynamicFormComponent implements OnChanges {
           </div>
         </details>
       </div>
-      <div class="summary-row" *ngFor="let item of entries()">
-        <span>{{ item.label }}</span>
-        <strong>{{ item.value }}</strong>
-      </div>
       <div class="approval-actions" *ngIf="ui.approvalRequired">
         <button class="approve" type="button" (click)="approve()">Confirm and create draft</button>
         <button class="reject" type="button" (click)="reject()">Reject / stop</button>
