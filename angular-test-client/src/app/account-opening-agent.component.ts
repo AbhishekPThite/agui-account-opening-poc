@@ -13,7 +13,7 @@ import { WidgetRendererComponent } from './widgets/widget-renderer.component';
 })
 export class AccountOpeningAgentComponent {
   prompt = signal(
-    'Open a joint brokerage account for client C12345 with USD as base currency.'
+    'Open a joint brokerage account for client C12345.'
   );
   conversationText = signal('');
 
