@@ -55,6 +55,9 @@ class AccountOpeningState(TypedDict, total=False):
     product_features_completed: bool
     journey_status: dict[str, Any]
     conversation_only: bool
+    dashboard_navigation: bool
+    requested_section: str
+    last_form_action: str
 
 
 EDITABLE_FIELDS = {
@@ -173,6 +176,8 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
         r"(?:tax residency|residency)\s*(?:is|:|to)\s*([A-Za-z][A-Za-z .'-]+?)(?:,|;|$)",
         text, state.get("joint_owner_tax_residency", "")
     )
+    dashboard_navigation = form_submission and extracted.get("formId") == "DASHBOARD_NAVIGATION"
+    requested_section = str(extracted.get("section", "")).strip().upper() if dashboard_navigation else ""
     setup_submitted = form_submission and extracted.get("formId") == "ACCOUNT_SETUP"
     profile_confirmed = form_submission and extracted.get("formId") == "PROFILE_CONFIRMATION"
     profile_capture = form_submission and extracted.get("formId") == "PROFILE_DATA_CAPTURE"
@@ -307,6 +312,9 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
         "joint_owner_tax_residency": str(extracted.get("jointOwnerTaxResidency") or tax or state.get("joint_owner_tax_residency", "")),
         "messages": [AIMessage(content=assistant_answer)] if assistant_answer else [],
         "conversation_only": bool(assistant_answer),
+        "dashboard_navigation": dashboard_navigation,
+        "requested_section": requested_section,
+        "last_form_action": str(extracted.get("formId", "")) if form_submission else "",
     }
 
 
@@ -329,6 +337,7 @@ def build_journey_status(state: AccountOpeningState) -> dict[str, Any]:
     draft_created = widget_id == "DRAFT_CONFIRMATION"
 
     current_by_widget = {
+        "APPLICATION_DASHBOARD": "DASHBOARD",
         "PROFILE_ASSESSMENT": "PROFILE",
         "PROFILE_DATA_CAPTURE": "PROFILE",
         "ACCOUNT_SETUP_FORM": "ACCOUNT_DETAILS",
@@ -342,7 +351,7 @@ def build_journey_status(state: AccountOpeningState) -> dict[str, Any]:
     current_stage = current_by_widget.get(widget_id)
 
     stages = [
-        {"id": "PROFILE", "label": "Profile"},
+        {"id": "PROFILE", "label": "Client Profile"},
         {"id": "ACCOUNT_DETAILS", "label": "Account Details"},
         {"id": "RISK_PROFILE", "label": "Risk Profile"},
         {"id": "FEATURES", "label": "Features"},
@@ -377,7 +386,7 @@ def build_journey_status(state: AccountOpeningState) -> dict[str, Any]:
     )
     statuses["SUMMARY"] = (
         "COMPLETED" if draft_created else
-        "IN_PROGRESS" if current_stage == "SUMMARY" else
+        "ACTION_REQUIRED" if all(statuses.get(key) == "COMPLETED" for key in ("PROFILE", "ACCOUNT_DETAILS", "RISK_PROFILE", "FEATURES")) else
         "PENDING"
     )
 
@@ -390,7 +399,61 @@ def build_journey_status(state: AccountOpeningState) -> dict[str, Any]:
         "completedCount": completed_count,
         "totalCount": len(stages),
         "overallStatus": "COMPLETED" if completed_count == len(stages) else "IN_PROGRESS",
+        "sections": [
+            {"id": stage["id"], "label": stage["label"], "status": stage["status"],
+             "description": {
+                 "PROFILE": "Review existing client information and complete missing mandatory details.",
+                 "ACCOUNT_DETAILS": "Select product, registration and account ownership details.",
+                 "RISK_PROFILE": "Review objectives, time horizon, liquidity and risk tolerance.",
+                 "FEATURES": "Review product-specific elections and preferences.",
+                 "SUMMARY": "Review the complete application before explicit draft approval.",
+             }[stage["id"]]}
+            for stage in stages
+        ],
     }
+
+
+def prepare_application_dashboard(state: AccountOpeningState) -> dict[str, Any]:
+    """Render the dashboard as the primary workspace for the application."""
+    profile = state.get("client_profile", {})
+    status = build_journey_status(state)
+    ui = {
+        "mode": "SUMMARY",
+        "widgetId": "APPLICATION_DASHBOARD",
+        "title": "Account opening workspace",
+        "description": "Review the status of each section. Open any section to confirm existing information or complete required fields.",
+        "fields": [],
+        "data": {
+            "clientId": state.get("client_id", ""),
+            "clientName": profile.get("displayName", ""),
+            "productType": state.get("product_type", state.get("account_type", "")) or "Not selected",
+            "registrationType": state.get("ownership", "INDIVIDUAL"),
+            "accountNickname": state.get("account_nickname", "Brokerage 1"),
+            "kycStatus": profile.get("kycStatus", "UNKNOWN"),
+        },
+        "approvalRequired": False,
+    }
+    ui["journeyStatus"] = status
+    return {"ui": ui, "journey_status": status,
+            "messages": [AIMessage(content="Your application workspace is ready. Select any section to review or complete it.")]}
+
+
+def open_dashboard_section(state: AccountOpeningState) -> dict[str, Any]:
+    """Open a requested section without advancing or completing other sections."""
+    section = str(state.get("requested_section", "")).upper()
+    if section == "PROFILE":
+        return prepare_profile_assessment(state)
+    if section == "ACCOUNT_DETAILS":
+        return prepare_account_setup(state)
+    if section == "RISK_PROFILE":
+        return prepare_risk_assessment(state)
+    if section == "FEATURES":
+        if not state.get("product_type") and not state.get("account_type"):
+            raise ValueError("Select an account product in Account Details before opening Product Features.")
+        return prepare_product_features(state)
+    if section == "SUMMARY":
+        return prepare_ui(state)
+    raise ValueError(f"Unsupported application section: {section!r}")
 
 
 def publish_journey_status(state: AccountOpeningState) -> dict[str, Any]:
@@ -421,15 +484,13 @@ def prepare_account_setup(state: AccountOpeningState) -> dict[str, Any]:
 def route_after_setup(state: AccountOpeningState) -> str:
     if state.get("conversation_only"):
         return "stay"
+    if state.get("dashboard_navigation"):
+        return "open_section"
     if state.get("profile_capture_requested"):
         return "capture_profile"
-    if state.get("profile_confirmed"):
-        return "continue_journey"
-    if state.get("profile_data_submitted"):
+    if not state.get("client_profile") or state.get("profile_data_submitted"):
         return "retrieve_client"
-    if state.get("account_setup_complete"):
-        return "retrieve_client"
-    return "show_setup"
+    return "dashboard"
 
 
 async def retrieve_client(
@@ -892,6 +953,8 @@ def build_graph(
     workflow = StateGraph(AccountOpeningState)
     workflow.add_node("understand_request", understand_request)
     workflow.add_node("prepare_account_setup", prepare_account_setup)
+    workflow.add_node("prepare_application_dashboard", prepare_application_dashboard)
+    workflow.add_node("open_dashboard_section", open_dashboard_section)
     workflow.add_node("publish_journey_status", publish_journey_status)
     async def retrieve_client_node(state: AccountOpeningState) -> dict[str, Any]:
         return await retrieve_client(state, client_api)
@@ -915,16 +978,15 @@ def build_graph(
     workflow.add_conditional_edges(
         "understand_request", route_after_setup,
         {"show_setup": "prepare_account_setup", "retrieve_client": "retrieve_client",
-         "continue_journey": "determine_requirements", "capture_profile": "prepare_profile_capture",
+         "dashboard": "prepare_application_dashboard", "open_section": "open_dashboard_section",
+         "continue_journey": "prepare_application_dashboard", "capture_profile": "prepare_profile_capture",
          "stay": END},
     )
     workflow.add_edge("prepare_account_setup", "publish_journey_status")
     workflow.add_edge("retrieve_client", "assess_client_profile")
-    workflow.add_conditional_edges(
-        "assess_client_profile",
-        lambda state: "continue" if state.get("profile_confirmed") else "review",
-        {"continue": "determine_requirements", "review": "prepare_profile_assessment"},
-    )
+    workflow.add_edge("assess_client_profile", "prepare_application_dashboard")
+    workflow.add_edge("prepare_application_dashboard", END)
+    workflow.add_edge("open_dashboard_section", "publish_journey_status")
     workflow.add_edge("prepare_profile_assessment", "publish_journey_status")
     workflow.add_edge("prepare_profile_capture", "publish_journey_status")
     def route_after_data_requirements(state: AccountOpeningState) -> str:
