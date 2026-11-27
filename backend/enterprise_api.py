@@ -114,6 +114,7 @@ class JavaExperienceApi:
                     "marginOption": application.get("marginOption", "NONE"),
                     "ownership": application["ownership"],
                     "jointOwner": application.get("jointOwner"),
+                    "beneficiaries": application.get("beneficiaries", []),
                 }
             return dict(MOCK_DRAFTS_BY_KEY[idempotency_key])
 
