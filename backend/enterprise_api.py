@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import logging
 import os
+import uuid
 from typing import Any
 from urllib.parse import quote
 
 import httpx
 
 logger = logging.getLogger(__name__)
+
+MOCK_DRAFTS_BY_KEY: dict[str, dict[str, Any]] = {}
 
 MOCK_CLIENT_PROFILE = {
     "clientId": "C12345",
@@ -19,10 +22,10 @@ MOCK_CLIENT_PROFILE = {
 
 
 class JavaExperienceApi:
-    """Adapter for the hypothetical Java Client Experience API.
+    """Adapter for the hypothetical Java Client and Draft Experience APIs.
 
     JAVA_API_MODE=mock keeps the POC self-contained.
-    JAVA_API_MODE=http enables the configured Java endpoint.
+    JAVA_API_MODE=http enables the configured Java endpoints.
     """
 
     def __init__(self) -> None:
@@ -55,7 +58,7 @@ class JavaExperienceApi:
                 "Accept": "application/json",
             },
         )
-        logger.info("Java Client Experience API adapter initialized: %s", self.base_url)
+        logger.info("Java Experience API adapter initialized: %s", self.base_url)
 
     async def close(self) -> None:
         if self._client is not None:
@@ -83,3 +86,49 @@ class JavaExperienceApi:
             )
 
         return {field: payload[field] for field in required}
+
+    async def create_draft(
+        self,
+        application: dict[str, Any],
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        """Create a draft; repeated keys return the same mock/API result."""
+        if self.mode == "mock":
+            if idempotency_key not in MOCK_DRAFTS_BY_KEY:
+                MOCK_DRAFTS_BY_KEY[idempotency_key] = {
+                    "applicationId": f"AO-{uuid.uuid4().hex[:8].upper()}",
+                    "status": "DRAFT",
+                    "clientId": application["clientId"],
+                    "accountType": application["accountType"],
+                    "ownership": application["ownership"],
+                    "baseCurrency": application["baseCurrency"],
+                }
+            return dict(MOCK_DRAFTS_BY_KEY[idempotency_key])
+
+        if self._client is None:
+            raise RuntimeError("Java Experience API client has not been started.")
+
+        response = await self._client.post(
+            "/api/v1/account-applications/drafts",
+            json=application,
+            headers={"Idempotency-Key": idempotency_key},
+        )
+        response.raise_for_status()
+        payload = response.json()
+
+        required = ("applicationId", "status", "clientId")
+        missing = [field for field in required if field not in payload]
+        if missing:
+            raise ValueError(
+                "Draft Application API response is missing required fields: "
+                + ", ".join(missing)
+            )
+        if str(payload["status"]).upper() != "DRAFT":
+            raise ValueError(
+                "Draft Application API returned an unexpected status: "
+                + str(payload["status"])
+            )
+        if str(payload["clientId"]) != str(application["clientId"]):
+            raise ValueError("Draft Application API returned a different client ID.")
+
+        return payload
