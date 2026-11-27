@@ -116,6 +116,7 @@ class JavaExperienceApi:
                     "jointOwner": application.get("jointOwner"),
                     "beneficiaries": application.get("beneficiaries", []),
                     "riskAssessment": application.get("riskAssessment", {}),
+                    "productFeatures": application.get("productFeatures", {}),
                 }
             return dict(MOCK_DRAFTS_BY_KEY[idempotency_key])
 
