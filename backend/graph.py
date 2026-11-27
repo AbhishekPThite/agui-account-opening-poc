@@ -121,7 +121,7 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
     beneficiary_skip = form_submission and extracted.get("formId") == "BENEFICIARY_SKIP"
     risk_assessment_submission = form_submission and extracted.get("formId") == "RISK_ASSESSMENT"
     product_features_submission = form_submission and extracted.get("formId") == "PRODUCT_FEATURES"
-    risk_fields = ("investmentObjectives", "experienceLevel", "riskTolerance", "investmentTimeHorizon", "liquidityNeeds", "productKnowledge")
+    risk_fields = ("investmentObjectives", "investmentTimeHorizon", "liquidityNeeds", "riskTolerance")
     submitted_risk = {key: str(extracted.get(key, "")).strip() for key in risk_fields if str(extracted.get(key, "")).strip()} if risk_assessment_submission else {}
     if risk_assessment_submission:
         missing_risk = [key for key in risk_fields if not submitted_risk.get(key)]
@@ -130,17 +130,13 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
         submitted_risk["investmentObjectives"] = [
             value.strip().upper() for value in submitted_risk["investmentObjectives"].split(",") if value.strip()
         ]
-        submitted_risk["experienceLevel"] = submitted_risk["experienceLevel"].upper()
         submitted_risk["riskTolerance"] = submitted_risk["riskTolerance"].upper()
         submitted_risk["investmentTimeHorizon"] = submitted_risk["investmentTimeHorizon"].upper()
         submitted_risk["liquidityNeeds"] = submitted_risk["liquidityNeeds"].upper()
-        submitted_risk["productKnowledge"] = submitted_risk["productKnowledge"].upper()
         allowed_risk_values = {
-            "experienceLevel": {"BEGINNER", "INTERMEDIATE", "EXPERIENCED"},
             "riskTolerance": {"CONSERVATIVE", "MODERATE", "AGGRESSIVE"},
             "investmentTimeHorizon": {"UNDER_3_YEARS", "3_TO_5_YEARS", "5_TO_10_YEARS", "OVER_10_YEARS"},
             "liquidityNeeds": {"LOW", "MEDIUM", "HIGH"},
-            "productKnowledge": {"LIMITED", "GOOD", "EXTENSIVE"},
         }
         invalid_risk = [
             key for key, allowed in allowed_risk_values.items()
@@ -153,24 +149,24 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
         product_type_for_features = str(state.get("product_type", state.get("account_type", ""))).upper()
         feature_schema = build_product_feature_requirements(product_type_for_features)
         feature_fields = feature_schema["fields"]
-        missing_features = [field["name"] for field in feature_fields if not str(extracted.get(field["name"], "")).strip()]
-        if missing_features:
-            raise ValueError("Product features are incomplete. Required fields: " + ", ".join(missing_features))
         for field in feature_fields:
             name = field["name"]
-            value = str(extracted[name]).strip()
+            value = str(extracted.get(name, "")).strip()
+            if not value:
+                if field.get("required"):
+                    raise ValueError("Product features are incomplete. Required fields: " + name)
+                continue
             if field["type"] == "select":
                 value = value.upper()
                 if value not in field["options"]:
                     raise ValueError(f"Unsupported value for {name}: {value}")
-            elif name == "requestedCreditLimit":
+            elif field["type"] == "number":
                 try:
-                    amount = float(value.replace(",", ""))
+                    value = float(value.replace(",", ""))
                 except ValueError as exc:
-                    raise ValueError("Requested credit limit must be a valid number.") from exc
-                if amount <= 0:
-                    raise ValueError("Requested credit limit must be greater than zero.")
-                value = amount
+                    raise ValueError(f"{name} must be a valid number.") from exc
+                if value <= 0:
+                    raise ValueError(f"{name} must be greater than zero.")
             submitted_features[name] = value
     beneficiary_values = {
         key: str(extracted.get(key, "")).strip()
@@ -395,11 +391,9 @@ def prepare_risk_assessment(state: AccountOpeningState) -> dict[str, Any]:
     risk_tolerance = current.get("riskTolerance") or investment.get("riskTolerance") or profile.get("riskProfile", "")
     fields = [
         {"name": "investmentObjectives", "label": "Investment objectives (comma-separated)", "type": "text", "required": True, "defaultValue": str(objectives or ""), "placeholder": "e.g. GROWTH, INCOME"},
-        {"name": "experienceLevel", "label": "Investment experience", "type": "select", "required": True, "options": ["BEGINNER", "INTERMEDIATE", "EXPERIENCED"], "defaultValue": current.get("experienceLevel") or investment.get("experienceLevel", "")},
-        {"name": "riskTolerance", "label": "Risk tolerance", "type": "select", "required": True, "options": ["CONSERVATIVE", "MODERATE", "AGGRESSIVE"], "defaultValue": risk_tolerance},
+        {"name": "riskTolerance", "label": "Risk comfort level", "type": "select", "required": True, "options": ["CONSERVATIVE", "MODERATE", "AGGRESSIVE"], "defaultValue": risk_tolerance},
         {"name": "investmentTimeHorizon", "label": "Investment time horizon", "type": "select", "required": True, "options": ["UNDER_3_YEARS", "3_TO_5_YEARS", "5_TO_10_YEARS", "OVER_10_YEARS"], "defaultValue": current.get("investmentTimeHorizon", "")},
         {"name": "liquidityNeeds", "label": "Liquidity needs", "type": "select", "required": True, "options": ["LOW", "MEDIUM", "HIGH"], "defaultValue": current.get("liquidityNeeds", "")},
-        {"name": "productKnowledge", "label": "Investment product knowledge", "type": "select", "required": True, "options": ["LIMITED", "GOOD", "EXTENSIVE"], "defaultValue": current.get("productKnowledge", "")},
     ]
     ui = {
         "mode": "FORM",
