@@ -102,29 +102,11 @@ export class AccountOpeningAgentComponent {
     this.send(message);
   }
 
-  sendSetupPrefill(): void {
-    const message = this.conversationText().trim();
-    if (!message || this.busy() || this.uiState()?.widgetId !== 'ACCOUNT_SETUP_FORM') return;
 
-    this.conversationText.set('');
-    this.send(message);
-  }
 
-  sendRiskPrefill(): void {
-    const message = this.conversationText().trim();
-    if (!message || this.busy() || this.uiState()?.widgetId !== 'RISK_ASSESSMENT_FORM') return;
 
-    this.conversationText.set('');
-    this.send(message);
-  }
 
-  sendProductFeaturesPrefill(): void {
-    const message = this.conversationText().trim();
-    if (!message || this.busy() || this.uiState()?.widgetId !== 'PRODUCT_FEATURES_FORM') return;
 
-    this.conversationText.set('');
-    this.send(message);
-  }
 
   sendEditRequest(): void {
     const message = this.conversationText().trim();
