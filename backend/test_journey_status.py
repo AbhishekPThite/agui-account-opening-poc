@@ -16,10 +16,10 @@ class JourneyStatusTests(unittest.TestCase):
         statuses = {stage["id"]: stage["status"] for stage in result["stages"]}
         self.assertEqual(statuses["PROFILE"], "ACTION_REQUIRED")
         self.assertEqual(statuses["ACCOUNT_DETAILS"], "ACTION_REQUIRED")
-        self.assertEqual(statuses["RISK_PROFILE"], "PENDING")
+        self.assertEqual(statuses["RISK_PROFILE"], "ACTION_REQUIRED")
         self.assertEqual(result["currentStage"], "ACCOUNT_DETAILS")
 
-    def test_profile_confirmation_required_is_distinct_from_action_required(self):
+    def test_populated_profile_is_complete_without_separate_confirmation_click(self):
         result = build_journey_status({
             "ui": {"widgetId": "PROFILE_ASSESSMENT"},
             "profile_assessment": {
@@ -28,19 +28,25 @@ class JourneyStatusTests(unittest.TestCase):
             },
         })
         statuses = {stage["id"]: stage["status"] for stage in result["stages"]}
-        self.assertEqual(statuses["PROFILE"], "CONFIRMATION_REQUIRED")
-        self.assertEqual(statuses["ACCOUNT_DETAILS"], "PENDING")
+        self.assertEqual(statuses["PROFILE"], "COMPLETED")
+        self.assertEqual(statuses["ACCOUNT_DETAILS"], "ACTION_REQUIRED")
 
     def test_completed_steps_and_current_summary_are_reported(self):
         state = {
             "ui": {"widgetId": "APPLICATION_SUMMARY"},
-            "profile_confirmed": True,
-            "account_setup_complete": True,
+            "profile_assessment": {"actionRequired": []},
+            "client_profile": {"investmentProfile": {"investmentObjectives": ["GROWTH"], "riskTolerance": "MODERATE"}},
+            "product_type": "BROKERAGE",
+            "account_type": "BROKERAGE",
+            "account_nickname": "Family Brokerage",
             "ownership": "JOINT",
             "joint_owner_name": "Jordan Morgan",
             "joint_owner_tax_residency": "US",
-            "risk_assessment_completed": True,
-            "product_features_completed": True,
+            "risk_assessment": {
+                "investmentTimeHorizon": "5_TO_10_YEARS",
+                "liquidityNeeds": "MEDIUM",
+            },
+            "product_features": {},
         }
         result = build_journey_status(state)
         statuses = {stage["id"]: stage["status"] for stage in result["stages"]}
@@ -49,7 +55,7 @@ class JourneyStatusTests(unittest.TestCase):
             "ACCOUNT_DETAILS": "COMPLETED",
             "RISK_PROFILE": "COMPLETED",
             "FEATURES": "COMPLETED",
-            "SUMMARY": "IN_PROGRESS",
+            "SUMMARY": "ACTION_REQUIRED",
         })
         self.assertEqual(result["completedCount"], 4)
         self.assertEqual(result["totalCount"], 5)
@@ -65,6 +71,7 @@ class JourneyStatusTests(unittest.TestCase):
                 "confirmationRequired": [{"field": "Personal details|email"}],
                 "actionRequired": [],
             },
+            "account_nickname": "Brokerage 1",
             "account_setup_complete": False,
             "risk_assessment_completed": False,
             "product_features_completed": False,
@@ -73,10 +80,10 @@ class JourneyStatusTests(unittest.TestCase):
         result = prepare_application_dashboard(state)
         self.assertEqual(result["ui"]["widgetId"], "APPLICATION_DASHBOARD")
         sections = {item["id"]: item for item in result["ui"]["journeyStatus"]["sections"]}
-        self.assertEqual(sections["PROFILE"]["status"], "CONFIRMATION_REQUIRED")
+        self.assertEqual(sections["PROFILE"]["status"], "COMPLETED")
         self.assertEqual(sections["ACCOUNT_DETAILS"]["status"], "ACTION_REQUIRED")
         self.assertEqual(sections["RISK_PROFILE"]["status"], "ACTION_REQUIRED")
-        self.assertEqual(sections["FEATURES"]["status"], "ACTION_REQUIRED")
+        self.assertEqual(sections["FEATURES"]["status"], "COMPLETED")
         self.assertEqual(sections["SUMMARY"]["status"], "PENDING")
 
     def test_dashboard_section_navigation_opens_requested_section(self):
@@ -113,11 +120,16 @@ class JourneyStatusTests(unittest.TestCase):
     def test_draft_confirmation_completes_summary_stage(self):
         result = build_journey_status({
             "ui": {"widgetId": "DRAFT_CONFIRMATION"},
-            "profile_confirmed": True,
-            "account_setup_complete": True,
+            "profile_assessment": {"actionRequired": []},
+            "client_profile": {"investmentProfile": {"investmentObjectives": ["GROWTH"], "riskTolerance": "MODERATE"}},
+            "product_type": "BROKERAGE",
+            "account_type": "BROKERAGE",
+            "account_nickname": "Brokerage 1",
             "ownership": "INDIVIDUAL",
-            "risk_assessment_completed": True,
-            "product_features_completed": True,
+            "risk_assessment": {
+                "investmentTimeHorizon": "5_TO_10_YEARS",
+                "liquidityNeeds": "MEDIUM",
+            },
         })
         self.assertEqual(result["overallStatus"], "COMPLETED")
         self.assertEqual(result["completedCount"], 5)
