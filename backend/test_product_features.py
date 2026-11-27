@@ -1,10 +1,12 @@
 import asyncio
 import json
 import unittest
+from unittest.mock import AsyncMock, patch
 
 from langchain_core.messages import HumanMessage
 from graph import understand_request, prepare_product_features
 from requirements_engine import build_product_feature_requirements
+from model_client import extract_product_features
 
 
 class ProductFeatureTests(unittest.TestCase):
@@ -44,6 +46,67 @@ class ProductFeatureTests(unittest.TestCase):
             [field["name"] for field in result["ui"]["fields"]],
             ["requestedCreditLimit", "collateralType", "facilityPurpose"],
         )
+
+    def test_conversational_brokerage_prefill_merges_only_explicit_values(self):
+        state = {
+            "messages": [HumanMessage(content="Opt in to options.")],
+            "ui": {"widgetId": "PRODUCT_FEATURES_FORM"},
+            "product_type": "BROKERAGE",
+            "product_features": {
+                "cashSweepVehicle": "BDP",
+                "mutualFundsTaxLotMethod": "FIRST_IN_FIRST_OUT",
+            },
+            "product_features_completed": False,
+        }
+        extracted = {
+            "cashSweepVehicle": "",
+            "linkedBankingAccount": "",
+            "optionsTradingElection": "YES",
+            "mutualFundsTaxLotMethod": "",
+            "otherSecuritiesTaxLotMethod": "",
+        }
+        with patch("graph.extract_product_features", new=AsyncMock(return_value=extracted)):
+            result = asyncio.run(understand_request(state))
+
+        self.assertEqual(result["product_features"]["optionsTradingElection"], "YES")
+        self.assertEqual(result["product_features"]["cashSweepVehicle"], "BDP")
+        self.assertEqual(result["product_features"]["mutualFundsTaxLotMethod"], "FIRST_IN_FIRST_OUT")
+        self.assertFalse(result["product_features_completed"])
+
+    def test_conversational_credit_facility_prefill_does_not_complete_form(self):
+        state = {
+            "messages": [HumanMessage(content="Request 250000 against securities for liquidity.")],
+            "ui": {"widgetId": "PRODUCT_FEATURES_FORM"},
+            "product_type": "CREDIT_FACILITY",
+            "product_features": {},
+            "product_features_completed": False,
+        }
+        extracted = {
+            "requestedCreditLimit": "250000.0",
+            "collateralType": "SECURITIES",
+            "facilityPurpose": "LIQUIDITY",
+        }
+        with patch("graph.extract_product_features", new=AsyncMock(return_value=extracted)):
+            result = asyncio.run(understand_request(state))
+
+        self.assertEqual(result["product_features"]["requestedCreditLimit"], 250000.0)
+        self.assertEqual(result["product_features"]["collateralType"], "SECURITIES")
+        self.assertFalse(result["product_features_completed"])
+
+    def test_product_extractor_ignores_unsupported_select_and_nonpositive_amount(self):
+        fields = build_product_feature_requirements("CREDIT_FACILITY")["fields"]
+        raw = {
+            "requestedCreditLimit": "-500",
+            "collateralType": "UNSUPPORTED",
+            "facilityPurpose": "LIQUIDITY",
+        }
+        with patch("model_client.extract_structured_data", new=AsyncMock(return_value=raw)):
+            result = asyncio.run(extract_product_features(
+                "Use unsupported collateral and request a negative amount.",
+                product_type="CREDIT_FACILITY",
+                field_definitions=fields,
+            ))
+        self.assertEqual(result, {"facilityPurpose": "LIQUIDITY"})
 
     def test_brokerage_submission_is_normalized(self):
         payload = {
