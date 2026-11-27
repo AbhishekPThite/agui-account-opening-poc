@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 
@@ -68,7 +69,8 @@ class JavaExperienceApi:
         if self._client is None:
             raise RuntimeError("Java Experience API client has not been started.")
 
-        response = await self._client.get(f"/api/v1/clients/{client_id}/profile")
+        safe_client_id = quote(client_id, safe="")
+        response = await self._client.get(f"/api/v1/clients/{safe_client_id}/profile")
         response.raise_for_status()
         payload = response.json()
 
