@@ -43,6 +43,10 @@ export class AccountOpeningAgentComponent {
   }
 
   submitWidget(payload: Record<string, unknown>): void {
+    if (payload['__beneficiaryAction'] === 'SKIP') {
+      this.send('POC_FORM_SUBMISSION:' + JSON.stringify({ formId: 'BENEFICIARY_SKIP' }));
+      return;
+    }
     if (payload['__profileAction'] === 'CONFIRM') {
       this.send('POC_FORM_SUBMISSION:' + JSON.stringify({ formId: 'PROFILE_CONFIRMATION' }));
       return;
@@ -63,6 +67,10 @@ export class AccountOpeningAgentComponent {
     }
     if (this.uiState()?.widgetId === 'PROFILE_DATA_CAPTURE') {
       this.send(`POC_FORM_SUBMISSION:${JSON.stringify({ ...payload, formId: 'PROFILE_DATA_CAPTURE' })}`);
+      return;
+    }
+    if (this.uiState()?.widgetId === 'BENEFICIARY_CAPTURE') {
+      this.send(`POC_FORM_SUBMISSION:${JSON.stringify({ ...payload, formId: 'BENEFICIARY_CAPTURE' })}`);
       return;
     }
 
