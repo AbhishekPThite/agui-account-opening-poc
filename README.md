@@ -289,6 +289,21 @@ The Angular shell renders a responsive five-stage progress tracker whenever the 
 
 The tracker is presentation-only: Angular does not calculate or mutate workflow progress. It consumes the backend's stage statuses and renders them with accessible list semantics. On narrow screens, the tracker switches to a vertical layout.
 
+## Angular journey progress tracker (Milestone 8E.2)
+
+Angular reads `ui.journeyStatus` from each AG-UI state snapshot and renders a persistent five-stage progress tracker above the active workflow widget.
+
+The tracker displays:
+- Profile, Account Details, Risk Profile, Features and Summary.
+- The backend-calculated stage status, current stage and completed-stage count.
+- A completion progress bar and status legend.
+- A responsive horizontal layout on wider screens and a vertical layout on narrow screens.
+- Accessible progress-bar values and current-step semantics.
+
+The frontend does not calculate workflow completion or decide which stages are mandatory. It renders the status model supplied by LangGraph. The active form/widget and existing submit actions are unchanged.
+
+After pulling the changes, start the backend and Angular client as usual. Begin a new journey to receive fresh state snapshots containing the current `journeyStatus` model.
+
 ## Journey status model (Milestone 8E.1)
 
 The backend now derives a compact journey-progress model from LangGraph state and attaches it to each rendered UI payload as `ui.journeyStatus`.
