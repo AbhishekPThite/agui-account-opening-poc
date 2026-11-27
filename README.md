@@ -5,7 +5,7 @@ A vertical slice for an Angular + AG-UI + FastAPI + LangGraph account-opening ex
 ## What this POC demonstrates
 1. RM submits a natural-language account-opening request.
 2. FastAPI exposes a LangGraph workflow through the AG-UI protocol.
-3. The graph retrieves a **mock** client profile and checks required fields deterministically.
+3. The graph retrieves a client profile through a configurable Java Experience API adapter (mock mode by default) and checks required fields deterministically.
 4. The graph publishes typed UI state for Angular to render through a controlled widget registry.
 5. Angular renders a joint-owner form and application summary from metadata.
 6. LangGraph pauses at an explicit human approval interrupt.
@@ -14,14 +14,14 @@ A vertical slice for an Angular + AG-UI + FastAPI + LangGraph account-opening ex
 9. Only an approved review reaches mock draft creation.
 10. Checkpoints can be stored in PostgreSQL so thread state and pending interrupts survive backend restarts.
 
-No real account is opened and no production system is called.
+No real account is opened. The Java API adapter defaults to mock mode; HTTP mode is an explicitly configured hypothetical integration contract.
 
 ## Architecture
 ```text
 Angular UI -> AG-UI adapter (fetch + SSE) -> FastAPI /agent
   -> ag-ui-langgraph -> LangGraph
        -> request understanding (LLM slot extraction)
-       -> mock client profile -> deterministic requirements
+       -> Java Client Experience API adapter -> deterministic requirements
        -> Angular form / summary UI state
        -> interrupt() waits for human action
             | EDIT -> extract changes -> revalidate -> new summary -> interrupt()
@@ -96,6 +96,58 @@ The application initializes the PostgreSQL connection pool and runs the LangGrap
 
 This verifies persistence of LangGraph thread state and interrupt data across a backend process restart. The browser tab is deliberately kept open because the demo currently stores the thread ID and pending interrupt ID in Angular component memory. Refresh recovery and cross-device thread discovery are separate capabilities and are not implemented yet.
 
+## Java Client Experience API — hypothetical contract (Milestone 5A)
+
+The Python backend now calls a small adapter in `backend/enterprise_api.py`. The adapter defaults to mock mode so existing local journeys continue to work without a Java service.
+
+**Profile lookup contract**
+
+```http
+GET /api/v1/clients/{clientId}/profile
+Authorization: Bearer <access-token>
+Accept: application/json
+```
+
+Example response:
+
+```json
+{
+  "clientId": "C12345",
+  "displayName": "Alex Morgan",
+  "segment": "PRIVATE_BANKING",
+  "kycStatus": "VALID",
+  "riskProfile": "MODERATE"
+}
+```
+
+The response fields are illustrative and must be aligned to the actual Java OpenAPI contract later. The adapter validates the required fields and fails the workflow if the service returns an HTTP error or an invalid response; it does not silently substitute mock data after a real API failure.
+
+**Configuration**
+
+Keep the default mock mode while validating the existing POC:
+
+```dotenv
+JAVA_API_MODE=mock
+JAVA_API_BASE_URL=http://localhost:8081
+JAVA_API_BEARER_TOKEN=
+JAVA_API_TIMEOUT_SECONDS=15
+JAVA_API_CA_CERT=
+```
+
+To exercise the hypothetical HTTP contract against a Java service or stub:
+
+```dotenv
+JAVA_API_MODE=http
+JAVA_API_BASE_URL=https://java-experience-api.example.internal
+JAVA_API_BEARER_TOKEN=<local-development-token>
+JAVA_API_TIMEOUT_SECONDS=15
+JAVA_API_CA_CERT=/path/to/internal-ca.crt
+```
+
+Do not put real tokens in source control or share them in chat. The bearer-token setting is a local POC placeholder, not the final enterprise authentication design. In production, use PingFederate/OAuth token acquisition or trusted delegated-token propagation, audience/scope validation, service identity, TLS and secret management.
+
+**Current milestone boundary:** client profile retrieval is routed through this adapter. Draft creation remains a mock function and will be replaced in Milestone 5B. No Pega or Pershing endpoint is called directly by LangGraph.
+
 ## Internal model endpoint
 The POC uses `langchain-openai` against an OpenAI-compatible internal endpoint. Configure `OPENAI_BASE_URL`, `OPENAI_MODEL`, and `OPENAI_API_KEY` in `backend/.env`. Set `INTERNAL_CA_CERT` to your organization's CA certificate path if required. TLS verification remains enabled.
 
@@ -122,7 +174,7 @@ The approval payload is a POC interaction contract, not a production authorizati
 6. Try an unclear edit. The agent should ask for a specific field and value rather than silently changing state.
 
 ## Important limitations and controls
-- Client profile and draft creation are mock implementations in `backend/graph.py`.
+- Java Client Experience API integration is configurable; mock mode is the default. Draft creation remains a mock implementation in `backend/graph.py` until Milestone 5B.
 - The extraction fallback supports only a small set of common edits. LLM extraction quality depends on the configured model.
 - PostgreSQL checkpointing persists LangGraph state and interrupts, but does not replace a business-owned application database or audit system. Keep authoritative application records and approval evidence in the appropriate Java/Pega services.
 - The local Docker Compose credentials are intentionally simple and must never be used outside local development.
