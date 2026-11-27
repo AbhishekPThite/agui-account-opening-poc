@@ -7,7 +7,7 @@ A vertical slice for an Angular + AG-UI + FastAPI + LangGraph account-opening ex
 2. FastAPI exposes a LangGraph workflow through the AG-UI protocol.
 3. The graph retrieves a client profile through the configurable Java Client Experience API adapter (mock mode by default) and checks required fields deterministically.
 4. The graph publishes typed UI state for Angular to render through a controlled widget registry.
-5. Angular renders adaptive profile, joint-owner and optional beneficiary forms plus the application summary from metadata.
+5. Angular renders adaptive profile, joint-owner, optional beneficiary and mandatory risk-assessment forms plus the application summary from metadata.
 6. LangGraph pauses at an explicit human approval interrupt.
 7. While paused, the RM can request field changes conversationally; the graph applies extracted updates, revalidates requirements and presents a new summary.
 8. Every revised summary requires a fresh explicit approval.
@@ -274,7 +274,7 @@ The backend resolves a deterministic requirements matrix from the selected regis
 
 The engine returns a normalized requirement list with `key`, `label`, `status` and `required`. The graph uses the resolved joint-owner rule to decide whether the joint-owner form is needed and includes the resolved matrix in the application review summary. Beneficiary details do not block the journey and are captured in the optional 8B step.
 
-**Milestone boundary:** 8A establishes and tests the decision matrix. The client-profile confirmation gate remains separate. Risk assessment is marked mandatory in the matrix but still needs its dedicated capture and completion gate before the POC can claim that the full mandatory journey is complete.
+**Milestone boundary:** 8A establishes and tests the decision matrix. The client-profile confirmation gate remains separate. Risk assessment is now implemented as the mandatory Milestone 8C capture and completion gate. The POC validates completeness but does not make a suitability decision.
 
 Run the decision-engine unit tests from the backend directory:
 
@@ -282,6 +282,34 @@ Run the decision-engine unit tests from the backend directory:
 python -m unittest test_requirements_engine.py -v
 ```
 
+
+## Mandatory risk assessment (Milestone 8C)
+
+After owner and optional beneficiary capture, the graph presents a mandatory risk-assessment form before it can prepare the application review.
+
+- Existing investment objectives, experience level and risk tolerance are prepopulated from the Client Experience API profile. The root `riskProfile` is used as a fallback for risk tolerance.
+- The RM confirms or corrects the prepopulated values and supplies any missing required information.
+- The POC captures investment objectives, investment experience, risk tolerance, investment time horizon, liquidity needs and investment product knowledge.
+- The backend validates that every field is present and that enumerated answers use supported values. Investment objectives are normalized to an uppercase list.
+- The graph persists the submitted values in checkpointed workflow state and includes them under `riskAssessment` in the Draft Application API request and application review summary.
+- The graph cannot proceed to application review until a complete risk assessment has been submitted.
+- This is data capture and completeness validation only. It does not calculate a risk score, assess suitability, recommend products, determine eligibility or replace the firm's approved suitability process.
+
+The field set and enumerations are assumed POC contracts. Align them with the firm's approved risk questionnaire, client segment, product and jurisdiction requirements before production.
+
+Run the backend tests from the backend directory:
+
+```bash
+python -m unittest test_requirements_engine.py test_risk_assessment.py -v
+```
+
+Manual check:
+1. Start a journey and complete profile confirmation, any required joint-owner information and the beneficiary step.
+2. Verify the risk form prepopulates investment objectives, experience and risk tolerance from the mock client profile.
+3. Verify time horizon, liquidity needs and product knowledge are required if not already present.
+4. Submit incomplete data through the UI and verify the browser prevents submission. Also verify the backend rejects incomplete structured submissions.
+5. Submit all fields and verify the application summary includes `riskAssessment`.
+6. Approve the review and inspect the mock draft response/logs to confirm the draft request includes `riskAssessment`.
 
 ## Adaptive owner and beneficiary capture (Milestone 8B)
 
