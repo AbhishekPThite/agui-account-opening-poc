@@ -13,7 +13,7 @@ class ProductFeatureTests(unittest.TestCase):
         self.assertEqual(schema["productType"], "BROKERAGE")
         self.assertEqual(
             [field["name"] for field in schema["fields"]],
-            ["tradingAccess", "cashManagement", "dividendReinvestment"],
+            ["onlineAccess", "eDelivery", "cashSweepOption", "marginInformation", "taxLotMethod", "proxyElection"],
         )
 
     def test_credit_facility_feature_schema_is_product_specific(self):
@@ -42,9 +42,12 @@ class ProductFeatureTests(unittest.TestCase):
     def test_brokerage_submission_is_normalized(self):
         payload = {
             "formId": "PRODUCT_FEATURES",
-            "tradingAccess": "active",
-            "cashManagement": "yes",
-            "dividendReinvestment": "no",
+            "onlineAccess": "Enabled",
+            "eDelivery": "Paperless",
+            "cashSweepOption": "Option A",
+            "marginInformation": "As selected during account setup",
+            "taxLotMethod": "FIFO",
+            "proxyElection": "Client directed",
         }
         state = {
             "product_type": "BROKERAGE",
@@ -52,9 +55,12 @@ class ProductFeatureTests(unittest.TestCase):
         }
         result = asyncio.run(understand_request(state))
         self.assertEqual(result["product_features"], {
-            "tradingAccess": "ACTIVE",
-            "cashManagement": "YES",
-            "dividendReinvestment": "NO",
+            "onlineAccess": "Enabled",
+            "eDelivery": "Paperless",
+            "cashSweepOption": "Option A",
+            "marginInformation": "As selected during account setup",
+            "taxLotMethod": "FIFO",
+            "proxyElection": "Client directed",
         })
         self.assertTrue(result["product_features_completed"])
 
@@ -82,7 +88,7 @@ class ProductFeatureTests(unittest.TestCase):
             asyncio.run(understand_request(bad_state))
 
     def test_incomplete_product_features_are_rejected(self):
-        payload = {"formId": "PRODUCT_FEATURES", "tradingAccess": "STANDARD"}
+        payload = {"formId": "PRODUCT_FEATURES"}
         state = {
             "product_type": "BROKERAGE",
             "messages": [HumanMessage(content="POC_FORM_SUBMISSION:" + json.dumps(payload))],
