@@ -15,6 +15,7 @@ export class AccountOpeningAgentComponent {
   prompt = signal(
     'Open a joint brokerage account for client C12345 with USD as base currency.'
   );
+  conversationText = signal('');
 
   // Keep one thread for the multi-turn journey; create a new one for each new journey.
   threadId = crypto.randomUUID();
@@ -35,6 +36,7 @@ export class AccountOpeningAgentComponent {
     this.assistantText.set([]);
     this.uiState.set(null);
     this.pendingInterruptId.set(null);
+    this.conversationText.set('');
     this.threadId = crypto.randomUUID();
 
     this.send(this.prompt());
@@ -54,18 +56,34 @@ export class AccountOpeningAgentComponent {
     this.send(`Here are the requested account-opening details: ${details}`);
   }
 
+  sendEditRequest(): void {
+    const message = this.conversationText().trim();
+    const interruptId = this.pendingInterruptId();
+    if (!message || !interruptId || this.busy()) return;
+
+    this.conversationText.set('');
+    this.resumeInterrupt(interruptId, {
+      action: 'EDIT',
+      message,
+    });
+  }
+
   private resumeApproval(action: 'APPROVE' | 'REJECT'): void {
     const interruptId = this.pendingInterruptId();
     if (!interruptId) {
       this.error.set('No pending approval was found. Start the account-opening journey again.');
       return;
     }
-    if (this.busy()) return;
 
     const payload = action === 'APPROVE'
       ? { action: 'APPROVE', approved: true }
       : { action: 'REJECT', approved: false };
 
+    this.resumeInterrupt(interruptId, payload);
+  }
+
+  private resumeInterrupt(interruptId: string, payload: unknown): void {
+    if (this.busy()) return;
     this.pendingInterruptId.set(null);
     this.send('', [{
       interruptId,
@@ -129,6 +147,8 @@ export class AccountOpeningAgentComponent {
         } else {
           this.error.set('The agent paused, but no interrupt ID was returned.');
         }
+      } else {
+        this.pendingInterruptId.set(null);
       }
     }
 
