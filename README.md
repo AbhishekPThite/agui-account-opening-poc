@@ -569,3 +569,21 @@ Manual checks:
 7. Complete all required sections, open Summary, and verify the existing explicit approval action is still required before draft creation.
 
 The Angular build and browser workflow must be verified locally after pulling; these changes were committed through GitHub and were not built in the user's environment.
+
+
+### 10A.2 Angular dashboard navigation and section workspace
+
+The Angular client now treats the application dashboard as the main workspace. The dashboard displays client context, a completion percentage, and clickable cards for Client Profile, Account Details, Risk Profile, Product Features and Summary. Each card renders its status and description from the backend journey-status model.
+
+Clicking a card sends a structured DASHBOARD_NAVIGATION message on the existing AG-UI thread. The selected section opens using checkpointed LangGraph state. A Back to application dashboard control is available while editing a section. After an explicit form submission, the backend returns the dashboard and publishes refreshed status. Joint-owner details are submitted through a structured form payload and validated server-side.
+
+The Product Features section remains unavailable until a product is selected. Summary navigation remains protected by the backend's mandatory-section readiness check and existing approval interrupt. The dashboard is not an approval surface and cannot create a draft.
+
+Manual verification after pulling:
+- Start a new journey and confirm the dashboard is the first workspace.
+- Open each section from its card and return using the back control.
+- Submit Account Details, Risk Profile and Product Features; confirm each returns to the dashboard and preserves previously entered values.
+- For Joint and Joint TOD, verify the Joint Owner form appears when required and rejects missing name or tax residency.
+- Open Summary early and verify the dashboard explains which required sections remain incomplete.
+- Complete all required sections, open Summary, and confirm the explicit approval gate still appears before draft creation.
+
