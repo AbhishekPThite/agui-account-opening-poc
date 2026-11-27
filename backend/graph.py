@@ -179,6 +179,14 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
     dashboard_navigation = form_submission and extracted.get("formId") == "DASHBOARD_NAVIGATION"
     requested_section = str(extracted.get("section", "")).strip().upper() if dashboard_navigation else ""
     setup_submitted = form_submission and extracted.get("formId") == "ACCOUNT_SETUP"
+    joint_owner_submission = form_submission and extracted.get("formId") == "JOINT_OWNER_DETAILS"
+    if joint_owner_submission:
+        missing_joint = [
+            key for key in ("jointOwnerName", "jointOwnerTaxResidency")
+            if not str(extracted.get(key, "")).strip()
+        ]
+        if missing_joint:
+            raise ValueError("Joint-owner details are incomplete. Required fields: " + ", ".join(missing_joint))
     profile_confirmed = form_submission and extracted.get("formId") == "PROFILE_CONFIRMATION"
     profile_capture = form_submission and extracted.get("formId") == "PROFILE_DATA_CAPTURE"
     profile_capture_requested = form_submission and extracted.get("formId") == "PROFILE_CAPTURE_REQUEST"
