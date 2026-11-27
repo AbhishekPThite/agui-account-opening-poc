@@ -49,6 +49,11 @@ export class AccountOpeningAgentComponent {
       return;
     }
 
+    if (this.uiState()?.widgetId === 'ACCOUNT_SETUP_FORM') {
+      this.send(`POC_FORM_SUBMISSION:${JSON.stringify({ ...payload, formId: 'ACCOUNT_SETUP' })}`);
+      return;
+    }
+
     const details = Object.entries(payload)
       .map(([key, value]) => `${key.replace(/([A-Z])/g, ' $1').toLowerCase()}: ${String(value)}`)
       .join(', ');
