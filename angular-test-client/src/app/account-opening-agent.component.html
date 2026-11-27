@@ -12,7 +12,7 @@
         <button class="primary" (click)="start()" [disabled]="busy()">
             {{busy() ? 'Agent working…' : 'Start account opening'}}
         </button>
-        <p class="hint">Start a new account-opening journey here. Use the conversation box below to edit an existing review.</p>
+        <p class="hint">Start a new journey here. Use the unified assistant below to ask questions, capture details or request review changes.</p>
     </section>
 
     <p class="error" *ngIf="error()">{{error()}}</p>
