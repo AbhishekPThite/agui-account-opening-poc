@@ -116,11 +116,20 @@ Example response:
   "displayName": "Alex Morgan",
   "segment": "PRIVATE_BANKING",
   "kycStatus": "VALID",
-  "riskProfile": "MODERATE"
+  "riskProfile": "MODERATE",
+  "personalDetails": {"firstName": "Alex", "lastName": "Morgan", "dateOfBirth": "1982-04-18", "email": "alex.morgan@example.test", "phone": "+1-212-555-0142"},
+  "addresses": {"residential": {"line1": "100 Park Avenue", "line2": "Apt 12B", "city": "New York", "state": "NY", "postalCode": "10017", "country": "US"}, "mailingSameAsResidential": true, "mailing": null},
+  "taxResidencies": [{"country": "US", "taxIdType": "SSN", "taxIdMasked": "***-**-6789", "status": "DECLARED"}],
+  "employment": {"status": "EMPLOYED", "occupation": "Technology Executive", "employerName": "Example Financial Services", "industry": "FINANCIAL_SERVICES"},
+  "investmentProfile": {"experienceLevel": "EXPERIENCED", "investmentObjectives": ["GROWTH", "INCOME"], "riskTolerance": "MODERATE", "annualIncomeRange": "250K_500K", "netWorthRange": "1M_5M"}
 }
 ```
 
-The response fields are illustrative and must be aligned to the actual Java OpenAPI contract later. The adapter validates the required fields and fails the workflow if the service returns an HTTP error or an invalid response; it does not silently substitute mock data after a real API failure.
+The response fields are an assumed POC contract and must be aligned to the actual Java OpenAPI specification later. The adapter validates the required profile sections and fails the workflow if the service returns an HTTP error or an invalid response; it does not silently substitute mock data after a real API failure.
+
+**Adaptive profile assessment (Milestone 7)**
+
+After account setup, the graph retrieves this profile and classifies attributes into Completed, Confirmation required and Action required. Populated personal, address, tax residency, employment and investment-profile values are shown for confirmation. Required attributes missing from the response block confirmation. The Angular dashboard is driven by LangGraph UI metadata. KYC status is displayed as retrieved information, not treated as an approval. Profile completeness is assessed deterministically; the LLM does not invent client facts or decide eligibility.
 
 **Draft creation contract**
 
