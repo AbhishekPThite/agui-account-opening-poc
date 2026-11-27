@@ -16,5 +16,6 @@ export const WIDGET_REGISTRY: Record<string, Type<AgentWidgetInstance>> = {
   APPLICATION_SUMMARY: AccountSummaryComponent,
   DRAFT_CONFIRMATION: DraftConfirmationComponent,
   INFORMATION_ALERT: InformationAlertComponent,
-  PROFILE_ASSESSMENT: ProfileAssessmentComponent
+  PROFILE_ASSESSMENT: ProfileAssessmentComponent,
+  RISK_ASSESSMENT_FORM: DynamicFormComponent
 };
