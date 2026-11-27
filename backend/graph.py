@@ -827,7 +827,7 @@ def build_graph(
         {"show_setup": "prepare_account_setup", "retrieve_client": "retrieve_client",
          "continue_journey": "determine_requirements", "capture_profile": "prepare_profile_capture"},
     )
-    workflow.add_edge("prepare_account_setup", END)
+    workflow.add_edge("prepare_account_setup", "publish_journey_status")
     workflow.add_edge("retrieve_client", "assess_client_profile")
     workflow.add_conditional_edges(
         "assess_client_profile",
