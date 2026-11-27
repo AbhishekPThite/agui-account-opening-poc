@@ -269,7 +269,16 @@ async def extract_product_features(
         if not raw:
             continue
         if field.get("type") == "select":
-            normalized = raw.upper().replace(" ", "_")
+            normalized = raw.upper().replace(" ", "_").replace("-", "_")
+            # Accept common business-language aliases, then validate against
+            # the exact enumerations owned by the product feature schema.
+            aliases = {
+                "FIFO": "FIRST_IN_FIRST_OUT",
+                "LIFO": "LAST_IN_FIRST_OUT",
+                "OPT_IN": "YES",
+                "OPT_OUT": "NO",
+            }
+            normalized = aliases.get(normalized, normalized)
             allowed = {str(value).upper() for value in field.get("options", [])}
             if normalized not in allowed:
                 logger.warning("Ignoring unsupported conversational product value for %s: %s", name, raw)
