@@ -787,7 +787,7 @@ def build_application_review_sections(state: AccountOpeningState) -> list[dict[s
                      "fields": account_fields})
 
     profile_fields: list[dict[str, Any]] = [
-        field("Client name", profile.get("displayName"), True),
+        field("Client name", profile.get("displayName")),
         field("Client ID", profile.get("clientId"), True),
         field("KYC status", profile.get("kycStatus")),
     ]
