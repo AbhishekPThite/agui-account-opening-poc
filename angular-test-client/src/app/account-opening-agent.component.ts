@@ -77,6 +77,10 @@ export class AccountOpeningAgentComponent {
       this.send(`POC_FORM_SUBMISSION:${JSON.stringify({ ...payload, formId: 'RISK_ASSESSMENT' })}`);
       return;
     }
+    if (this.uiState()?.widgetId === 'PRODUCT_FEATURES_FORM') {
+      this.send(`POC_FORM_SUBMISSION:${JSON.stringify({ ...payload, formId: 'PRODUCT_FEATURES' })}`);
+      return;
+    }
 
     const details = Object.entries(payload)
       .map(([key, value]) => `${key.replace(/([A-Z])/g, ' $1').toLowerCase()}: ${String(value)}`)
