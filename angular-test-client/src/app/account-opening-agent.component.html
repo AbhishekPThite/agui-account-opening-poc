@@ -87,25 +87,6 @@
         <p class="hint">Information is only captured into the active form. Use the form's Continue button to submit; conversational messages do not complete mandatory steps.</p>
     </section>
 
-    <section class="panel conversation-panel" *ngIf="pendingInterruptId()">
-        <div class="eyebrow">CONVERSATION · APPLICATION REVIEW</div>
-        <h2>Would you like to change anything?</h2>
-        <p>Ask the agent to update a field before approving. For example, “Change the base currency to SGD” or “Change the joint owner's tax residency to Singapore”.</p>
-        <label for="edit-request">Your change request</label>
-        <textarea
-            id="edit-request"
-            rows="2"
-            [ngModel]="conversationText()"
-            (ngModelChange)="conversationText.set($event)"
-            (keydown.control.enter)="sendEditRequest()"
-            (keydown.meta.enter)="sendEditRequest()"
-            placeholder="Tell the agent what you want to change…"></textarea>
-        <button class="primary" (click)="sendEditRequest()" [disabled]="busy() || !conversationText().trim()">
-            {{busy() ? 'Updating…' : 'Update application'}}
-        </button>
-        <p class="hint">The agent will show a revised summary. Your previous approval does not carry over.</p>
-    </section>
-
     <details class="panel" *ngIf="events().length">
         <summary>AG-UI event trace ({{events().length}} events)</summary>
         <pre>{{events() | json}}</pre>
