@@ -141,7 +141,7 @@ async def retrieve_client(
 
 def determine_requirements(state: AccountOpeningState) -> dict[str, Any]:
     missing: list[str] = []
-    if state.get("ownership") == "JOINT":
+    if state.get("ownership") in {"JOINT", "JOINT_TOD"}:
         if not state.get("joint_owner_name"):
             missing.append("jointOwnerName")
         if not state.get("joint_owner_tax_residency"):
@@ -191,6 +191,9 @@ def prepare_ui(state: AccountOpeningState) -> dict[str, Any]:
             "clientId": state.get("client_id", ""),
             "clientName": profile.get("displayName", ""),
             "accountType": state.get("account_type", ""),
+            "productType": state.get("product_type", state.get("account_type", "")),
+            "accountNickname": state.get("account_nickname", ""),
+            "marginOption": state.get("margin_option", "NONE"),
             "ownership": state.get("ownership", ""),
             "baseCurrency": state.get("base_currency", ""),
             "jointOwnerName": state.get("joint_owner_name", "") or "—",
@@ -330,6 +333,10 @@ async def create_draft(
     application_request: dict[str, Any] = {
         "clientId": state["client_id"],
         "accountType": state["account_type"],
+        "productType": state.get("product_type", state["account_type"]),
+        "registrationType": state["ownership"],
+        "accountNickname": state.get("account_nickname", ""),
+        "marginOption": state.get("margin_option", "NONE"),
         "ownership": state["ownership"],
         "baseCurrency": state["base_currency"],
     }
