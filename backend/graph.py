@@ -42,6 +42,8 @@ class AccountOpeningState(TypedDict, total=False):
     requirements_assessment: dict[str, Any]
     beneficiary_data: dict[str, Any]
     beneficiary_capture_completed: bool
+    risk_assessment: dict[str, Any]
+    risk_assessment_completed: bool
 
 
 EDITABLE_FIELDS = {
@@ -115,6 +117,9 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
     profile_capture_requested = form_submission and extracted.get("formId") == "PROFILE_CAPTURE_REQUEST"
     beneficiary_capture = form_submission and extracted.get("formId") == "BENEFICIARY_CAPTURE"
     beneficiary_skip = form_submission and extracted.get("formId") == "BENEFICIARY_SKIP"
+    risk_assessment_submission = form_submission and extracted.get("formId") == "RISK_ASSESSMENT"
+    risk_fields = ("investmentObjectives", "experienceLevel", "riskTolerance", "investmentTimeHorizon", "liquidityNeeds", "productKnowledge")
+    submitted_risk = {key: str(extracted.get(key, "")).strip() for key in risk_fields if str(extracted.get(key, "")).strip()} if risk_assessment_submission else {}
     beneficiary_values = {
         key: str(extracted.get(key, "")).strip()
         for key in ("beneficiaryFullName", "beneficiaryRelationship", "beneficiaryDateOfBirth")
@@ -159,6 +164,8 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
             beneficiary_capture or beneficiary_skip
             or state.get("beneficiary_capture_completed", False)
         ),
+        "risk_assessment": {**state.get("risk_assessment", {}), **submitted_risk},
+        "risk_assessment_completed": risk_assessment_submission or state.get("risk_assessment_completed", False),
         "joint_owner_name": str(extracted.get("jointOwnerName") or owner or state.get("joint_owner_name", "")),
         "joint_owner_tax_residency": str(extracted.get("jointOwnerTaxResidency") or tax or state.get("joint_owner_tax_residency", "")),
     }
@@ -321,6 +328,36 @@ def determine_requirements(state: AccountOpeningState) -> dict[str, Any]:
     }
 
 
+def prepare_risk_assessment(state: AccountOpeningState) -> dict[str, Any]:
+    """Collect and confirm mandatory risk-profile inputs; do not score suitability."""
+    profile = state.get("client_profile", {})
+    investment = profile.get("investmentProfile") or {}
+    current = state.get("risk_assessment", {})
+    objectives = current.get("investmentObjectives")
+    if objectives is None:
+        objectives = investment.get("investmentObjectives", [])
+    if isinstance(objectives, list):
+        objectives = ", ".join(str(value) for value in objectives)
+    risk_tolerance = current.get("riskTolerance") or investment.get("riskTolerance") or profile.get("riskProfile", "")
+    fields = [
+        {"name": "investmentObjectives", "label": "Investment objectives (comma-separated)", "type": "text", "required": True, "defaultValue": str(objectives or ""), "placeholder": "e.g. GROWTH, INCOME"},
+        {"name": "experienceLevel", "label": "Investment experience", "type": "select", "required": True, "options": ["BEGINNER", "INTERMEDIATE", "EXPERIENCED"], "defaultValue": current.get("experienceLevel") or investment.get("experienceLevel", "")},
+        {"name": "riskTolerance", "label": "Risk tolerance", "type": "select", "required": True, "options": ["CONSERVATIVE", "MODERATE", "AGGRESSIVE"], "defaultValue": risk_tolerance},
+        {"name": "investmentTimeHorizon", "label": "Investment time horizon", "type": "select", "required": True, "options": ["UNDER_3_YEARS", "3_TO_5_YEARS", "5_TO_10_YEARS", "OVER_10_YEARS"], "defaultValue": current.get("investmentTimeHorizon", "")},
+        {"name": "liquidityNeeds", "label": "Liquidity needs", "type": "select", "required": True, "options": ["LOW", "MEDIUM", "HIGH"], "defaultValue": current.get("liquidityNeeds", "")},
+        {"name": "productKnowledge", "label": "Investment product knowledge", "type": "select", "required": True, "options": ["LIMITED", "GOOD", "EXTENSIVE"], "defaultValue": current.get("productKnowledge", "")},
+    ]
+    ui = {
+        "mode": "FORM",
+        "widgetId": "RISK_ASSESSMENT_FORM",
+        "title": "Investment risk assessment",
+        "description": "Confirm the existing investment profile and complete the remaining required information. This step records client-provided information; it does not determine suitability or recommend investments.",
+        "fields": fields,
+        "data": {"clientId": state.get("client_id", ""), "mandatory": True},
+    }
+    return {"ui": ui, "messages": [AIMessage(content="Please confirm the existing investment profile and complete all required risk-assessment fields.")]}
+
+
 def prepare_beneficiary_capture(state: AccountOpeningState) -> dict[str, Any]:
     """Offer an optional single-beneficiary capture step for every registration."""
     beneficiary = state.get("beneficiary_data", {})
@@ -391,6 +428,7 @@ def prepare_ui(state: AccountOpeningState) -> dict[str, Any]:
             "jointOwnerTaxResidency": state.get("joint_owner_tax_residency", "") or "—",
             "beneficiaryName": state.get("beneficiary_data", {}).get("beneficiaryFullName", "Not provided"),
             "beneficiaryRelationship": state.get("beneficiary_data", {}).get("beneficiaryRelationship", "Not provided"),
+            "riskAssessment": state.get("risk_assessment", {}),
             "kycStatus": profile.get("kycStatus", "UNKNOWN"),
             "requirements": "; ".join(
                 f"{item['label']}: {item['status']}"
@@ -533,6 +571,7 @@ async def create_draft(
         "marginOption": state.get("margin_option", "NONE"),
         "ownership": state["ownership"],
         "applicationData": state.get("application_data", {}),
+        "riskAssessment": state.get("risk_assessment", {}),
     }
     if state.get("ownership") in {"JOINT", "JOINT_TOD"}:
         application_request["jointOwner"] = {
@@ -601,6 +640,7 @@ def build_graph(
     workflow.add_node("prepare_profile_assessment", prepare_profile_assessment)
     workflow.add_node("prepare_profile_capture", prepare_profile_capture)
     workflow.add_node("prepare_beneficiary_capture", prepare_beneficiary_capture)
+    workflow.add_node("prepare_risk_assessment", prepare_risk_assessment)
     workflow.add_node("determine_requirements", determine_requirements)
     workflow.add_node("prepare_ui", prepare_ui)
     workflow.add_node("await_approval", await_human_approval)
@@ -629,13 +669,16 @@ def build_graph(
             return "joint_owner"
         if not state.get("beneficiary_capture_completed"):
             return "beneficiary"
+        if not state.get("risk_assessment_completed"):
+            return "risk_assessment"
         return "review"
 
     workflow.add_conditional_edges(
         "determine_requirements", route_after_data_requirements,
-        {"joint_owner": "prepare_ui", "beneficiary": "prepare_beneficiary_capture", "review": "prepare_ui"},
+        {"joint_owner": "prepare_ui", "beneficiary": "prepare_beneficiary_capture", "risk_assessment": "prepare_risk_assessment", "review": "prepare_ui"},
     )
     workflow.add_edge("prepare_beneficiary_capture", END)
+    workflow.add_edge("prepare_risk_assessment", END)
     workflow.add_conditional_edges(
         "prepare_ui", route_after_requirements,
         {"wait_for_input": END, "await_approval": "await_approval"},
