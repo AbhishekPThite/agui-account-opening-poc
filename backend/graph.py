@@ -264,7 +264,7 @@ async def apply_review_edit(state: AccountOpeningState, decision: dict[str, Any]
     # Restrict values to supported POC values. Enterprise APIs remain authoritative.
     if "ownership" in updates and updates["ownership"] not in {"JOINT", "JOINT_TOD", "INDIVIDUAL", "INDIVIDUAL_TOD"}:
         updates.pop("ownership")
-    if "account_type" in updates and updates["account_type"] not in {"BROKERAGE", "CASH", "MARGIN"}:
+    if "account_type" in updates and updates["account_type"] not in {"BROKERAGE", "CREDIT_FACILITY"}:
         updates.pop("account_type")
 
     if not updates:
