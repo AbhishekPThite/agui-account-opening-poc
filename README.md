@@ -430,3 +430,32 @@ Manual check:
 3. Select **Prefill account setup** and verify Product, Registration, Nickname and Margin are populated.
 4. Enter a follow-up: `Change the nickname to Family Brokerage.` Verify only the nickname changes and the other values remain.
 5. Verify the form is not submitted until you select **Continue**.
+
+## Conversational risk assessment prefill (Milestone 9B)
+
+While the mandatory Risk Assessment form is active, the RM can describe client-stated preferences in natural language. The configured model extracts only the four questionnaire fields:
+- Investment objectives.
+- Investment time horizon.
+- Liquidity needs.
+- Risk tolerance.
+
+Only non-empty extracted values are merged into the checkpointed risk-assessment state. Follow-up messages can update one field without clearing the others. Unsupported or ambiguous enum values are ignored by the extractor and remain available for manual selection in the form. The next AG-UI state snapshot refreshes the form defaults.
+
+The conversational message does **not** submit the risk assessment or mark it complete. The RM must review the populated form and select Continue. The backend still validates all four required fields and the supported enum values on structured form submission.
+
+**Control boundary:** this is extraction of client-stated information only. The model must not calculate a risk score, infer a risk category from demographics or financial data, assess suitability, recommend investments, or make eligibility decisions. The questionnaire's field definitions and enum values are assumed POC contracts and must be aligned with the firm's approved risk process before production.
+
+Run the focused backend tests from the backend directory:
+
+```bash
+python -m unittest test_risk_assessment.py -v
+```
+
+Manual check:
+1. Start a new journey and reach Risk Assessment.
+2. Enter: `I am investing for about seven years, need medium liquidity, and am comfortable with moderate risk. My objectives are growth and income.`
+3. Select **Prefill risk assessment**. Verify that the form fields are populated but not submitted.
+4. Enter a follow-up that changes only liquidity needs. Verify the other fields remain populated.
+5. Submit with a required field blank and verify the backend still rejects it; complete all fields and continue.
+6. Try ambiguous language such as `I may need access to the money sometime`. Verify the model leaves the unclear field blank rather than inventing an answer.
+
