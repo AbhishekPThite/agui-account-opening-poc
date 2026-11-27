@@ -47,6 +47,10 @@ export class AccountOpeningAgentComponent {
       this.send('POC_FORM_SUBMISSION:' + JSON.stringify({ formId: 'PROFILE_CONFIRMATION' }));
       return;
     }
+    if (payload['__profileAction'] === 'EDIT') {
+      this.send('POC_FORM_SUBMISSION:' + JSON.stringify({ formId: 'PROFILE_CAPTURE_REQUEST' }));
+      return;
+    }
     const action = payload['__approvalAction'];
     if (action === 'APPROVE' || action === 'REJECT') {
       this.resumeApproval(action);
@@ -55,6 +59,10 @@ export class AccountOpeningAgentComponent {
 
     if (this.uiState()?.widgetId === 'ACCOUNT_SETUP_FORM') {
       this.send(`POC_FORM_SUBMISSION:${JSON.stringify({ ...payload, formId: 'ACCOUNT_SETUP' })}`);
+      return;
+    }
+    if (this.uiState()?.widgetId === 'PROFILE_DATA_CAPTURE') {
+      this.send(`POC_FORM_SUBMISSION:${JSON.stringify({ ...payload, formId: 'PROFILE_DATA_CAPTURE' })}`);
       return;
     }
 
