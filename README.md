@@ -288,13 +288,12 @@ python -m unittest test_requirements_engine.py -v
 After the mandatory risk-assessment step, the graph renders a feature form selected deterministically from the account product type.
 
 **Brokerage**
-- Online Access & E-Delivery Preferences.
-- Cash Sweep Options.
-- Margin Information.
-- Tax Information (including tax-lot accounting method, such as FIFO or LIFO).
-- Proxy Election.
+- Cash Sweep Options: Sweep Vehicle defaults to **BDP**; existing banking-account link is left blank because the screenshot does not show a selected account.
+- Options Settings: “Opt in to Options?” defaults to **No**.
+- Tax Lot Relief Methods: Mutual Funds defaults to **First In First Out (FIFO)**.
+- Tax Lot Relief Methods: All Other Securities defaults to **First In First Out (FIFO)**.
 
-These are kept as lightweight, generic capture fields. The detailed option sets and conditional rules will be aligned with the product/API contract rather than embedded in LangGraph node logic.
+The defaults mirror the values visible in the supplied Brokerage - Individual screenshot. The existing-banking-account field is intentionally unselected. These are presentation defaults for the POC, not product eligibility or trading permissions.
 
 **Credit Facility**
 - Requested credit limit: positive numeric amount.
@@ -312,7 +311,7 @@ python -m unittest test_requirements_engine.py test_risk_assessment.py test_prod
 ```
 
 Manual checks:
-1. Start a new Brokerage journey and complete profile, owner, beneficiary and risk steps. Verify the Brokerage form contains Online Access & E-Delivery Preferences, Cash Sweep Options, Margin Information, Tax Information and Proxy Election.
+1. Start a new Brokerage journey and complete profile, owner, beneficiary and risk steps. Verify the Brokerage form defaults Sweep Vehicle to BDP, Options election to No, and both tax-lot methods to First In First Out; the existing banking-account link remains blank.
 2. Complete it and verify the application summary contains `productFeatures`.
 3. Start a new Credit Facility journey and verify the form instead contains requested credit limit, proposed collateral and facility purpose.
 4. Submit zero or a negative credit limit using a direct structured request and verify the backend rejects it.
