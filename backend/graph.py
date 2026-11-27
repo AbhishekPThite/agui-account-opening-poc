@@ -191,8 +191,17 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
         "account_type": selected_product,
         "product_type": selected_product,
         "ownership": selected_registration,
-        "account_nickname": str(extracted.get("accountNickname") or state.get("account_nickname") or "Brokerage 1"),
-        "margin_option": str(extracted.get("marginOption") or state.get("margin_option", "NONE")).upper(),
+        "account_nickname": str(
+            extracted.get("account_nickname")
+            or extracted.get("accountNickname")
+            or state.get("account_nickname")
+            or "Brokerage 1"
+        ),
+        "margin_option": (
+            str(extracted.get("margin_option") or extracted.get("marginOption")).upper()
+            if str(extracted.get("margin_option") or extracted.get("marginOption") or "").upper() in {"NONE", "MARGIN"}
+            else state.get("margin_option", "NONE")
+        ),
         "account_setup_complete": setup_submitted or state.get("account_setup_complete", False),
         "profile_confirmed": profile_confirmed or state.get("profile_confirmed", False),
         "profile_capture_requested": profile_capture_requested,
