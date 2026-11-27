@@ -18,6 +18,11 @@ MOCK_CLIENT_PROFILE = {
     "segment": "PRIVATE_BANKING",
     "kycStatus": "VALID",
     "riskProfile": "MODERATE",
+    "personalDetails": {"firstName": "Alex", "lastName": "Morgan", "dateOfBirth": "1982-04-18", "email": "alex.morgan@example.test", "phone": "+1-212-555-0142"},
+    "addresses": {"residential": {"line1": "100 Park Avenue", "line2": "Apt 12B", "city": "New York", "state": "NY", "postalCode": "10017", "country": "US"}, "mailingSameAsResidential": True, "mailing": None},
+    "taxResidencies": [{"country": "US", "taxIdType": "SSN", "taxIdMasked": "***-**-6789", "status": "DECLARED"}],
+    "employment": {"status": "EMPLOYED", "occupation": "Technology Executive", "employerName": "Example Financial Services", "industry": "FINANCIAL_SERVICES"},
+    "investmentProfile": {"experienceLevel": "EXPERIENCED", "investmentObjectives": ["GROWTH", "INCOME"], "riskTolerance": "MODERATE", "annualIncomeRange": "250K_500K", "netWorthRange": "1M_5M"}
 }
 
 
@@ -77,14 +82,16 @@ class JavaExperienceApi:
         response.raise_for_status()
         payload = response.json()
 
-        required = ("clientId", "displayName", "segment", "kycStatus", "riskProfile")
+        required = ("clientId", "displayName", "segment", "kycStatus", "riskProfile",
+                    "personalDetails", "addresses", "taxResidencies", "employment", "investmentProfile")
         missing = [field for field in required if field not in payload]
         if missing:
-            raise ValueError(
-                "Client Experience API response is missing required fields: "
-                + ", ".join(missing)
-            )
-
+            raise ValueError("Client Experience API response is missing required sections: " + ", ".join(missing))
+        expected_types = {"personalDetails": dict, "addresses": dict, "taxResidencies": list,
+                          "employment": dict, "investmentProfile": dict}
+        invalid = [field for field, expected in expected_types.items() if not isinstance(payload[field], expected)]
+        if invalid:
+            raise ValueError("Client Experience API returned invalid profile sections: " + ", ".join(invalid))
         return {field: payload[field] for field in required}
 
     async def create_draft(
