@@ -25,10 +25,22 @@
             </div>
             <div class="journey-count">{{journey.completedCount}} of {{journey.totalCount}} completed</div>
         </div>
+        <div
+            class="journey-progress"
+            role="progressbar"
+            aria-label="Account opening journey completion"
+            [attr.aria-valuemin]="0"
+            [attr.aria-valuemax]="journey.totalCount"
+            [attr.aria-valuenow]="journey.completedCount">
+            <span [style.width.%]="journey.totalCount ? (journey.completedCount / journey.totalCount) * 100 : 0"></span>
+        </div>
         <div class="journey-track" role="list" aria-label="Account opening progress">
             <div class="journey-stage" role="listitem" *ngFor="let stage of journey.stages; let last = last">
                 <div class="stage-topline">
-                    <span class="stage-marker" [ngClass]="'status-' + stage.status.toLowerCase().replace('_', '-')">
+                    <span
+                        class="stage-marker"
+                        [ngClass]="'status-' + stage.status.toLowerCase().replace('_', '-')"
+                        [attr.aria-current]="stage.id === journey.currentStage ? 'step' : null">
                         <span *ngIf="stage.status === 'COMPLETED'">✓</span>
                         <span *ngIf="stage.status !== 'COMPLETED'">{{stage.id === journey.currentStage ? '●' : '○'}}</span>
                     </span>
@@ -39,6 +51,12 @@
                     {{stage.status.replace('_', ' ')}}
                 </span>
             </div>
+        </div>
+        <div class="journey-legend" aria-label="Journey status legend">
+            <span><i class="legend-dot completed"></i>Completed</span>
+            <span><i class="legend-dot active"></i>In progress</span>
+            <span><i class="legend-dot attention"></i>Action / confirmation required</span>
+            <span><i class="legend-dot pending"></i>Pending</span>
         </div>
     </section>
 
