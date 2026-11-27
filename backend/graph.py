@@ -10,7 +10,7 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 from checkpointer import checkpointer
 from langgraph.types import interrupt
-from model_client import extract_account_request, extract_risk_assessment, extract_product_features, model
+from model_client import (\n    extract_account_request, extract_risk_assessment, extract_product_features,\n    extract_active_form_fields, answer_journey_question, model,\n)
 from requirements_engine import build_registration_requirements, build_product_feature_requirements
 
 
@@ -80,10 +80,12 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
             extracted = json.loads(text.split(":", 1)[1])
         except (json.JSONDecodeError, IndexError):
             raise ValueError("The submitted account setup form could not be read.")
-    elif model is not None and text:
-        active_widget = state.get("ui", {}).get("widgetId")
+    active_widget = state.get("ui", {}).get("widgetId", "")
+    active_ui = state.get("ui", {})
+    assistant_answer = ""
+    if not form_submission and text:
         if active_widget == "RISK_ASSESSMENT_FORM":
-            extracted = await extract_risk_assessment(text)
+            extracted = await extract_risk_assessment(text) if model is not None else {}
         elif active_widget == "PRODUCT_FEATURES_FORM":
             active_product = str(state.get("product_type", state.get("account_type", ""))).upper()
             product_schema = build_product_feature_requirements(active_product)
@@ -91,9 +93,28 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
                 text,
                 product_type=active_product,
                 field_definitions=product_schema["fields"],
-            )
+            ) if model is not None else {}
+        elif active_widget in {
+            "ACCOUNT_SETUP_FORM", "JOINT_OWNER_FORM", "BENEFICIARY_CAPTURE", "PROFILE_DATA_CAPTURE"
+        }:
+            extracted = await extract_active_form_fields(
+                text,
+                widget_title=str(active_ui.get("title", "Account opening")),
+                field_definitions=active_ui.get("fields", []),
+            ) if model is not None else {}
+        elif active_widget == "PROFILE_ASSESSMENT":
+            extracted = {}
         else:
-            extracted = await extract_account_request(text)
+            extracted = await extract_account_request(text) if model is not None else {}
+
+        if not any(str(value).strip() for value in extracted.values()):
+            assistant_answer = await answer_journey_question(
+                text,
+                widget_title=str(active_ui.get("title", "Account opening")),
+                widget_description=str(active_ui.get("description", "")),
+                field_definitions=active_ui.get("fields", []),
+                product_type=str(state.get("product_type", state.get("account_type", ""))),
+            )
 
     client_id = extracted.get("client_id") or extracted.get("clientId") or extract_value(
         r"\bclient\s+([A-Z0-9-]+)", text, state.get("client_id", "C12345")
@@ -131,6 +152,8 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
     profile_capture = form_submission and extracted.get("formId") == "PROFILE_DATA_CAPTURE"
     profile_capture_requested = form_submission and extracted.get("formId") == "PROFILE_CAPTURE_REQUEST"
     beneficiary_capture = form_submission and extracted.get("formId") == "BENEFICIARY_CAPTURE"
+    beneficiary_prefill = not form_submission and active_widget == "BENEFICIARY_CAPTURE"
+    profile_data_prefill = not form_submission and active_widget == "PROFILE_DATA_CAPTURE"
     beneficiary_skip = form_submission and extracted.get("formId") == "BENEFICIARY_SKIP"
     risk_assessment_submission = form_submission and extracted.get("formId") == "RISK_ASSESSMENT"
     risk_assessment_prefill = (
@@ -197,11 +220,11 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
         key: str(extracted.get(key, "")).strip()
         for key in ("beneficiaryFullName", "beneficiaryRelationship", "beneficiaryDateOfBirth")
         if str(extracted.get(key, "")).strip()
-    } if beneficiary_capture else {}
+    } if (beneficiary_capture or beneficiary_prefill) else {}
     captured_values = {
         str(key): value for key, value in extracted.items()
         if key not in {"formId", "clientId"} and value is not None and str(value).strip() != ""
-    } if profile_capture else {}
+    } if (profile_capture or profile_data_prefill) else {}
     explicitly_confirmed_values = {
         item["field"]: item["value"]
         for item in state.get("profile_assessment", {}).get("confirmationRequired", [])
@@ -251,7 +274,8 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
         "product_features": {**state.get("product_features", {}), **submitted_features},
         "product_features_completed": product_features_submission or state.get("product_features_completed", False),
         "joint_owner_name": str(extracted.get("jointOwnerName") or owner or state.get("joint_owner_name", "")),
-        "joint_owner_tax_residency": str(extracted.get("jointOwnerTaxResidency") or tax or state.get("joint_owner_tax_residency", "")),
+        "joint_owner_tax_residency": str(extracted.get("jointOwnerTaxResidency") or extracted.get("jointOwnerTaxResidency") or tax or state.get("joint_owner_tax_residency", "")),
+        "messages": [AIMessage(content=assistant_answer)] if assistant_answer else [],
     }
 
 
