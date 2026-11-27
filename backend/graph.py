@@ -88,16 +88,16 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
     }
 
 
-def retrieve_client(state: AccountOpeningState) -> dict[str, Any]:
-    # Replace with an authenticated call to the Java Client Experience API.
+async def retrieve_client(
+    state: AccountOpeningState,
+    client_api: Any | None = None,
+) -> dict[str, Any]:
+    """Retrieve the authoritative client profile through the Experience API adapter."""
     client_id = state.get("client_id", "C12345")
-    return {"client_profile": {
-        "clientId": client_id,
-        "displayName": "Alex Morgan",
-        "segment": "PRIVATE_BANKING",
-        "kycStatus": "VALID",
-        "riskProfile": "MODERATE",
-    }}
+    if client_api is None:
+        raise RuntimeError("Client Experience API adapter was not configured.")
+    profile = await client_api.get_client_profile(client_id)
+    return {"client_profile": profile}
 
 
 def determine_requirements(state: AccountOpeningState) -> dict[str, Any]:
@@ -319,10 +319,16 @@ def route_after_approval(state: AccountOpeningState) -> str:
     return "finish"
 
 
-def build_graph(checkpointer_override: Any | None = None):
+def build_graph(
+    checkpointer_override: Any | None = None,
+    client_api: Any | None = None,
+):
     workflow = StateGraph(AccountOpeningState)
     workflow.add_node("understand_request", understand_request)
-    workflow.add_node("retrieve_client", retrieve_client)
+    async def retrieve_client_node(state: AccountOpeningState) -> dict[str, Any]:
+        return await retrieve_client(state, client_api)
+
+    workflow.add_node("retrieve_client", retrieve_client_node)
     workflow.add_node("determine_requirements", determine_requirements)
     workflow.add_node("prepare_ui", prepare_ui)
     workflow.add_node("await_approval", await_human_approval)
