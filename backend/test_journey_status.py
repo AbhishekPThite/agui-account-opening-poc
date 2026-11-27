@@ -43,8 +43,10 @@ class JourneyStatusTests(unittest.TestCase):
             "joint_owner_name": "Jordan Morgan",
             "joint_owner_tax_residency": "US",
             "risk_assessment": {
+                "investmentObjectives": ["GROWTH"],
                 "investmentTimeHorizon": "5_TO_10_YEARS",
                 "liquidityNeeds": "MEDIUM",
+                "riskTolerance": "MODERATE",
             },
             "product_features": {},
         }
@@ -116,6 +118,21 @@ class JourneyStatusTests(unittest.TestCase):
         self.assertEqual(result["ui"]["widgetId"], "APPLICATION_DASHBOARD")
         self.assertFalse(result["ui"].get("approvalRequired", False))
         self.assertIn("not ready for final review", result["messages"][0].content.lower())
+
+    def test_risk_status_does_not_use_values_from_client_profile(self):
+        result = build_journey_status({
+            "client_profile": {
+                "investmentProfile": {
+                    "investmentObjectives": ["GROWTH"],
+                    "riskTolerance": "MODERATE",
+                },
+            },
+            "product_type": "BROKERAGE",
+            "account_nickname": "Brokerage 1",
+            "risk_assessment": {},
+        })
+        statuses = {stage["id"]: stage["status"] for stage in result["stages"]}
+        self.assertEqual(statuses["RISK_PROFILE"], "ACTION_REQUIRED")
 
     def test_final_review_groups_all_sections_for_accordion_display(self):
         sections = build_application_review_sections({
