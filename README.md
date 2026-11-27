@@ -281,3 +281,20 @@ Run the decision-engine unit tests from the backend directory:
 ```bash
 python -m unittest test_requirements_engine.py -v
 ```
+
+
+## Adaptive owner and beneficiary capture (Milestone 8B)
+
+- **Primary owner:** uses the client profile retrieved through the Client Experience API. The existing profile confirmation/capture gate is reused; confirmed or corrected values remain in `applicationData`.
+- **Joint owner:** the graph asks for joint-owner name and tax residency only for `JOINT` and `JOINT_TOD`. The form prepopulates any values already present in workflow state.
+- **Beneficiary:** after owner requirements are satisfied, the graph offers an optional beneficiary form for all four registration types. The POC captures one beneficiary's full name, relationship and date of birth. All fields are optional, and the RM can explicitly skip the step.
+- **Draft payload:** when beneficiary data is supplied, it is sent as a one-element `beneficiaries` array. When skipped or left blank, the field is omitted from the request. The mock response echoes the beneficiary list.
+- **Source boundary:** the one-beneficiary field set and Java payload shape are assumed POC contracts, not a legal or jurisdictional beneficiary standard. Align them with the actual Java OpenAPI contract and applicable product/jurisdiction rules before production.
+- **No eligibility decision:** beneficiary data is captured as application input only. It does not trigger eligibility, suitability, legal validation or account-opening decisions.
+
+Manual checks:
+1. Start an Individual journey: primary-owner data is taken from the confirmed client profile; no joint-owner form appears.
+2. Start a Joint journey: the joint-owner form appears and is required before the beneficiary step.
+3. On either journey, add a beneficiary and verify the draft request includes `beneficiaries`.
+4. Repeat and select **Skip beneficiary**; the journey must proceed and the draft request must omit `beneficiaries`.
+5. Try submitting the beneficiary form with all fields blank; it should also proceed without blocking.
