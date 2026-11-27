@@ -37,7 +37,7 @@
                     <strong>{{journey.completedCount}} of {{journey.totalCount}} sections completed</strong>
                     <span>Complete the required sections before final review.</span>
                 </div>
-                <strong class="completion-percent">{{journey.totalCount ? Math.round(journey.completedCount / journey.totalCount * 100) : 0}}%</strong>
+                <strong class="completion-percent">{{completionPercent()}}%</strong>
             </div>
             <div class="journey-progress" role="progressbar"
                  aria-label="Application completion"
