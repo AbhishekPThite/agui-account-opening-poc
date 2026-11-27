@@ -137,7 +137,7 @@ def prepare_ui(state: AccountOpeningState) -> dict[str, Any]:
         }
         message = (
             f"I found client {state['client_profile']['displayName']} ({state['client_id']}). "
-            "The mock KYC service reports VALID. Please provide the joint owner's name and tax residency."
+            "The client profile reports KYC status {state['client_profile'].get('kycStatus', 'UNKNOWN')}. Please provide the joint owner's name and tax residency."
         )
         return {"ui": ui, "approval_status": "", "messages": [AIMessage(content=message)]}
 
@@ -254,7 +254,7 @@ async def await_human_approval(state: AccountOpeningState) -> dict[str, Any]:
         return {
             "approval_status": "APPROVED",
             "review_action": "APPROVE",
-            "messages": [AIMessage(content="Application review confirmed. Creating the mock draft now.")],
+            "messages": [AIMessage(content="Application review confirmed. Sending the approved application to the Draft Application API.")],
         }
 
     if isinstance(decision, dict) and decision.get("action") == "EDIT":
