@@ -18,7 +18,6 @@ class AccountOpeningState(TypedDict, total=False):
     client_id: str
     account_type: str
     ownership: str
-    base_currency: str
     joint_owner_name: str
     joint_owner_tax_residency: str
     client_profile: dict[str, Any]
@@ -39,7 +38,6 @@ EDITABLE_FIELDS = {
     "client_id": "client_id",
     "account_type": "account_type",
     "ownership": "ownership",
-    "base_currency": "base_currency",
     "joint_owner_name": "joint_owner_name",
     "joint_owner_tax_residency": "joint_owner_tax_residency",
 }
@@ -96,9 +94,6 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
         ownership = "INDIVIDUAL_TOD" if re.search(r"\bTOD\b|transfer on death", text, re.IGNORECASE) else "INDIVIDUAL"
     else:
         ownership = state.get("ownership", "INDIVIDUAL")
-    currency = extracted.get("base_currency") or extract_value(
-        r"\b(USD|EUR|GBP|SGD|HKD|AED)\b", text, state.get("base_currency", "USD")
-    )
     owner = extracted.get("joint_owner_name") or extract_value(
         r"(?:joint owner|co-owner)(?: name)?\s*(?:is|:|to)\s*([A-Za-z][A-Za-z .'-]+?)(?:,|;|$)",
         text, state.get("joint_owner_name", "")
@@ -115,7 +110,6 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
         "account_type": selected_product,
         "product_type": selected_product,
         "ownership": selected_registration,
-        "base_currency": str(extracted.get("baseCurrency") or currency).upper(),
         "account_nickname": str(extracted.get("accountNickname") or state.get("account_nickname") or "Brokerage 1"),
         "margin_option": str(extracted.get("marginOption") or state.get("margin_option", "NONE")).upper(),
         "account_setup_complete": setup_submitted or state.get("account_setup_complete", False),
@@ -135,7 +129,6 @@ def prepare_account_setup(state: AccountOpeningState) -> dict[str, Any]:
             {"name": "registrationType", "label": "Registration type", "type": "select", "required": True, "options": ["INDIVIDUAL", "INDIVIDUAL_TOD", "JOINT", "JOINT_TOD"], "defaultValue": state.get("ownership", "INDIVIDUAL")},
             {"name": "accountNickname", "label": "Account nickname", "type": "text", "required": True, "placeholder": "Account nickname", "defaultValue": state.get("account_nickname") or "Brokerage 1"},
             {"name": "marginOption", "label": "Margin option", "type": "select", "required": True, "options": ["NONE", "MARGIN"], "defaultValue": state.get("margin_option", "NONE")},
-            {"name": "baseCurrency", "label": "Base currency", "type": "select", "required": True, "options": ["USD", "SGD", "EUR", "GBP", "HKD", "AED"], "defaultValue": state.get("base_currency", "USD")}
         ],
         "data": {"clientId": state.get("client_id", "C12345")}
     }
@@ -214,7 +207,6 @@ def prepare_ui(state: AccountOpeningState) -> dict[str, Any]:
             "accountNickname": state.get("account_nickname", ""),
             "marginOption": state.get("margin_option", "NONE"),
             "ownership": state.get("ownership", ""),
-            "baseCurrency": state.get("base_currency", ""),
             "jointOwnerName": state.get("joint_owner_name", "") or "—",
             "jointOwnerTaxResidency": state.get("joint_owner_tax_residency", "") or "—",
             "kycStatus": profile.get("kycStatus", "UNKNOWN"),
@@ -239,7 +231,6 @@ def regex_edit_extraction(text: str) -> dict[str, str]:
         "client_id": r"\bclient\s+(?:id\s+)?([A-Z0-9-]+)",
         "account_type": r"account type\s+(?:to|is)\s+(BROKERAGE|CASH|MARGIN)",
         "ownership": r"ownership\s+(?:to|is)\s+(JOINT|INDIVIDUAL)",
-        "base_currency": r"(?:base )?currency\s+(?:to|is)\s+(USD|EUR|GBP|SGD|HKD|AED)",
         "joint_owner_name": r"(?:joint owner|co-owner)(?: name)?\s+(?:to|is)\s+([A-Za-z][A-Za-z .'-]+?)(?:\.|,|;|$)",
         "joint_owner_tax_residency": r"(?:joint owner(?:'s)? )?tax residency\s+(?:to|is)\s+([A-Za-z][A-Za-z .'-]+?)(?:\.|,|;|$)",
     }
@@ -263,14 +254,14 @@ async def apply_review_edit(state: AccountOpeningState, decision: dict[str, Any]
         value = str(extracted.get(key) or fallback.get(key) or "").strip()
         if value:
             updates[EDITABLE_FIELDS[key]] = value.upper() if key in {
-                "account_type", "ownership", "base_currency"
+                "account_type", "ownership"
             } else value
 
     if not updates:
         return {
             "approval_status": "PENDING",
             "review_action": "EDIT",
-            "messages": [AIMessage(content="I couldn't identify a specific field change. Please specify the field and its new value, for example: 'Change the base currency to SGD'.")],
+            "messages": [AIMessage(content="I couldn't identify a specific field change. Please specify the field and its new value, for example: 'Change the account nickname to Brokerage 2'.")],
         }
 
     # Restrict values to supported POC values. Enterprise APIs remain authoritative.
@@ -278,14 +269,12 @@ async def apply_review_edit(state: AccountOpeningState, decision: dict[str, Any]
         updates.pop("ownership")
     if "account_type" in updates and updates["account_type"] not in {"BROKERAGE", "CASH", "MARGIN"}:
         updates.pop("account_type")
-    if "base_currency" in updates and updates["base_currency"] not in {"USD", "EUR", "GBP", "SGD", "HKD", "AED"}:
-        updates.pop("base_currency")
 
     if not updates:
         return {
             "approval_status": "PENDING",
             "review_action": "EDIT",
-            "messages": [AIMessage(content="That value is not supported by this POC. Please use a supported account type, ownership or currency.")],
+            "messages": [AIMessage(content="That value is not supported by this POC. Please use a supported product type or registration type.")],
         }
 
     logger_message = ", ".join(f"{key}={value}" for key, value in updates.items())
@@ -357,7 +346,6 @@ async def create_draft(
         "accountNickname": state.get("account_nickname", ""),
         "marginOption": state.get("margin_option", "NONE"),
         "ownership": state["ownership"],
-        "baseCurrency": state["base_currency"],
     }
     if state.get("ownership") in {"JOINT", "JOINT_TOD"}:
         application_request["jointOwner"] = {
