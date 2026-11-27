@@ -90,9 +90,9 @@ The application initializes the PostgreSQL connection pool and runs the LangGrap
 2. Keep the Angular browser tab open. Do not click Confirm or Reject.
 3. Stop and restart only the FastAPI process. Do not stop or delete the PostgreSQL container.
 4. Verify `GET /health` reports `"checkpointer": "postgres"`.
-5. Use the existing review screen to request an edit, for example **“Change the base currency to SGD”**.
-6. Confirm that the same thread resumes, the saved fields remain present, and the revised summary reflects SGD.
-7. Confirm the revised summary and verify the mock draft contains SGD.
+5. Use the existing review screen to request a supported account-detail edit.
+6. Confirm that the same thread resumes, the saved fields remain present, and the revised summary reflects the change.
+7. Confirm the revised summary and verify the mock draft contains the updated details.
 
 This verifies persistence of LangGraph thread state and interrupt data across a backend process restart. The browser tab is deliberately kept open because the demo currently stores the thread ID and pending interrupt ID in Angular component memory. Refresh recovery and cross-device thread discovery are separate capabilities and are not implemented yet.
 
@@ -138,7 +138,6 @@ Example request:
   "clientId": "C12345",
   "accountType": "BROKERAGE",
   "ownership": "JOINT",
-  "baseCurrency": "SGD",
   "jointOwner": {
     "name": "Jordan Morgan",
     "taxResidency": "Singapore"
@@ -205,7 +204,7 @@ The approval payload is a POC interaction contract, not a production authorizati
 
 ## Manual conversational test scenarios
 1. Start a joint brokerage account request, provide joint-owner details, and wait for the summary.
-2. Enter **“Change the base currency to SGD”** in the conversation box. Confirm the new summary shows SGD and a higher review version.
+2. Enter a supported account-detail change in the conversation box. Confirm the new summary reflects the change and shows a higher review version.
 3. Confirm the edited application. The draft confirmation should show the API-returned application ID and status.
 4. Start another journey, change joint-owner tax residency to Singapore, and verify the revised summary before approval.
 5. Reject a review and verify that no draft is created.
