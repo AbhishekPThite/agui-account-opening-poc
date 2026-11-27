@@ -2,26 +2,26 @@ import { CommonModule } from '@angular/common';
 import { Component, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { AgUiEvent, AguiClientService } from './agui-client.service';
+import { AgentUI } from './models/agent-ui.model';
+import { WidgetRendererComponent } from './widgets/widget-renderer.component';
 
 @Component({
   selector: 'app-account-opening-agent',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, WidgetRendererComponent],
   templateUrl: './account-opening-agent.component.html',
 })
 export class AccountOpeningAgentComponent {
   prompt = signal(
     'Open a joint brokerage account for client C12345 with USD as base currency.'
   );
-  ownerName = signal('');
-  taxResidency = signal('');
 
   // Keep one thread for the multi-turn journey; create a new one for each new journey.
   threadId = crypto.randomUUID();
 
   events = signal<AgUiEvent[]>([]);
   assistantText = signal<string[]>([]);
-  uiState = signal<Record<string, unknown> | null>(null);
+  uiState = signal<AgentUI | null>(null);
   busy = signal(false);
   error = signal('');
 
@@ -33,17 +33,17 @@ export class AccountOpeningAgentComponent {
     this.events.set([]);
     this.assistantText.set([]);
     this.uiState.set(null);
-    this.ownerName.set('');
-    this.taxResidency.set('');
     this.threadId = crypto.randomUUID();
 
     this.send(this.prompt());
   }
 
-  submitJointOwner(): void {
-    const text =
-      `Joint owner name: ${this.ownerName()}, tax residency: ${this.taxResidency()}`;
-    this.send(text);
+  submitWidget(payload: Record<string, unknown>): void {
+    const details = Object.entries(payload)
+      .map(([key, value]) => `${key.replace(/([A-Z])/g, ' $1').toLowerCase()}: ${String(value)}`)
+      .join(', ');
+
+    this.send(`Here are the requested account-opening details: ${details}`);
   }
 
   private send(text: string): void {
@@ -78,10 +78,11 @@ export class AccountOpeningAgentComponent {
     if (event.type === 'STATE_SNAPSHOT') {
       const snapshot = event['snapshot'] as
         Record<string, unknown> | undefined;
+      const ui = snapshot?.['ui'];
 
-      if (snapshot?.['ui']) {
-        console.log('[AG-UI UI STATE]', snapshot['ui']);
-        this.uiState.set(snapshot['ui'] as Record<string, unknown>);
+      if (ui && typeof ui === 'object' && 'widgetId' in ui && 'mode' in ui && 'title' in ui) {
+        console.log('[AG-UI UI STATE]', ui);
+        this.uiState.set(ui as AgentUI);
       }
     }
 
