@@ -114,12 +114,6 @@ Do not return markdown, code fences, prose, or explanations."""
         for key in field_schema
     }
     logger.info("LLM extracted field names: %s", [key for key, value in extracted.items() if value])
-    if extracted.get("margin_option", "").upper() not in {"", "NONE", "MARGIN"}:
-        logger.warning("LLM returned unsupported margin option: %s", extracted["margin_option"])
-        extracted["margin_option"] = ""
-    else:
-        extracted["margin_option"] = extracted.get("margin_option", "").upper()
-
     return extracted
 
 
@@ -171,5 +165,11 @@ async def extract_account_request(user_text: str) -> dict[str, Any]:
         extracted["ownership"] = ""
     else:
         extracted["ownership"] = extracted.get("ownership", "").upper()
+
+    if extracted.get("margin_option", "").upper() not in {"", "NONE", "MARGIN"}:
+        logger.warning("LLM returned unsupported margin option: %s", extracted["margin_option"])
+        extracted["margin_option"] = ""
+    else:
+        extracted["margin_option"] = extracted.get("margin_option", "").upper()
 
     return extracted
