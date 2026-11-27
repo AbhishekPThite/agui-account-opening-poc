@@ -113,6 +113,12 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
         str(key): value for key, value in extracted.items()
         if key not in {"formId", "clientId"} and value is not None and str(value).strip() != ""
     } if profile_capture else {}
+    explicitly_confirmed_values = {
+        item["field"]: item["value"]
+        for item in state.get("profile_assessment", {}).get("confirmationRequired", [])
+        if item.get("field")
+    } if profile_confirmed else {}
+    profile_values_to_merge = {**explicitly_confirmed_values, **captured_values}
     selected_product = str(extracted.get("productType") or product_type).upper()
     selected_registration = str(extracted.get("registrationType") or ownership).upper()
     return {
@@ -128,11 +134,11 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
         "profile_data_submitted": profile_capture or state.get("profile_data_submitted", False),
         "confirmed_profile_data": {
             **state.get("confirmed_profile_data", {}),
-            **captured_values,
+            **profile_values_to_merge,
         },
         "application_data": {
             **state.get("application_data", {}),
-            **captured_values,
+            **profile_values_to_merge,
         },
         "joint_owner_name": str(extracted.get("jointOwnerName") or owner or state.get("joint_owner_name", "")),
         "joint_owner_tax_residency": str(extracted.get("jointOwnerTaxResidency") or tax or state.get("joint_owner_tax_residency", "")),
@@ -463,6 +469,7 @@ async def create_draft(
         "accountNickname": state.get("account_nickname", ""),
         "marginOption": state.get("margin_option", "NONE"),
         "ownership": state["ownership"],
+        "applicationData": state.get("application_data", {}),
     }
     if state.get("ownership") in {"JOINT", "JOINT_TOD"}:
         application_request["jointOwner"] = {
