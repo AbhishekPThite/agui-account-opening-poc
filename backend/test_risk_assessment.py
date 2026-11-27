@@ -1,6 +1,7 @@
 import asyncio
 import json
 import unittest
+from unittest.mock import AsyncMock, patch
 
 from langchain_core.messages import HumanMessage
 from graph import understand_request, prepare_risk_assessment
@@ -33,6 +34,30 @@ class RiskAssessmentTests(unittest.TestCase):
         state = {"messages": [HumanMessage(content="POC_FORM_SUBMISSION:" + json.dumps(payload))]}
         with self.assertRaisesRegex(ValueError, "Risk assessment is incomplete"):
             asyncio.run(understand_request(state))
+
+    def test_conversational_prefill_merges_only_extracted_values_without_completing(self):
+        state = {
+            "messages": [HumanMessage(content="I need the money in about seven years.")],
+            "ui": {"widgetId": "RISK_ASSESSMENT_FORM"},
+            "risk_assessment": {
+                "investmentObjectives": ["GROWTH", "INCOME"],
+                "riskTolerance": "MODERATE",
+            },
+            "risk_assessment_completed": False,
+        }
+        extracted = {
+            "investmentObjectives": "",
+            "investmentTimeHorizon": "5_TO_10_YEARS",
+            "liquidityNeeds": "",
+            "riskTolerance": "",
+        }
+        with patch("graph.extract_risk_assessment", new=AsyncMock(return_value=extracted)):
+            result = asyncio.run(understand_request(state))
+
+        self.assertEqual(result["risk_assessment"]["investmentTimeHorizon"], "5_TO_10_YEARS")
+        self.assertEqual(result["risk_assessment"]["investmentObjectives"], ["GROWTH", "INCOME"])
+        self.assertEqual(result["risk_assessment"]["riskTolerance"], "MODERATE")
+        self.assertFalse(result["risk_assessment_completed"])
 
     def test_backend_normalizes_and_accepts_complete_risk_assessment(self):
         payload = {
