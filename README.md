@@ -5,13 +5,13 @@ A vertical slice for an Angular + AG-UI + FastAPI + LangGraph account-opening ex
 ## What this POC demonstrates
 1. RM submits a natural-language account-opening request.
 2. FastAPI exposes a LangGraph workflow through the AG-UI protocol.
-3. The graph retrieves a client profile through a configurable Java Experience API adapter (mock mode by default) and checks required fields deterministically.
+3. The graph retrieves a client profile through the configurable Java Client Experience API adapter (mock mode by default) and checks required fields deterministically.
 4. The graph publishes typed UI state for Angular to render through a controlled widget registry.
 5. Angular renders a joint-owner form and application summary from metadata.
 6. LangGraph pauses at an explicit human approval interrupt.
 7. While paused, the RM can request field changes conversationally; the graph applies extracted updates, revalidates requirements and presents a new summary.
 8. Every revised summary requires a fresh explicit approval.
-9. Only an approved review reaches mock draft creation.
+9. Only an approved review reaches the Java Draft Application API adapter; local mock mode returns a simulated draft.
 10. Checkpoints can be stored in PostgreSQL so thread state and pending interrupts survive backend restarts.
 
 No real account is opened. The Java API adapter defaults to mock mode; HTTP mode is an explicitly configured hypothetical integration contract.
@@ -21,11 +21,11 @@ No real account is opened. The Java API adapter defaults to mock mode; HTTP mode
 Angular UI -> AG-UI adapter (fetch + SSE) -> FastAPI /agent
   -> ag-ui-langgraph -> LangGraph
        -> request understanding (LLM slot extraction)
-       -> Java Client Experience API adapter -> deterministic requirements
+       -> Java Client Experience API -> deterministic requirements
        -> Angular form / summary UI state
        -> interrupt() waits for human action
             | EDIT -> extract changes -> revalidate -> new summary -> interrupt()
-            | APPROVE -> mock draft creation
+            | APPROVE -> Java Draft Application Experience API
             | REJECT -> finish without draft
        -> Checkpointer
             | MemorySaver (local default)
@@ -98,7 +98,7 @@ This verifies persistence of LangGraph thread state and interrupt data across a 
 
 ## Java Client Experience API — hypothetical contract (Milestone 5A)
 
-The Python backend now calls a small adapter in `backend/enterprise_api.py`. The adapter defaults to mock mode so existing local journeys continue to work without a Java service.
+The Python backend now calls a small adapter in `backend/enterprise_api.py`. The adapter defaults to mock mode so existing local journeys continue to work without a Java service. The same adapter now handles both client profile lookup and draft creation.
 
 **Profile lookup contract**
 
@@ -121,6 +121,44 @@ Example response:
 ```
 
 The response fields are illustrative and must be aligned to the actual Java OpenAPI contract later. The adapter validates the required fields and fails the workflow if the service returns an HTTP error or an invalid response; it does not silently substitute mock data after a real API failure.
+
+**Draft creation contract**
+
+```http
+POST /api/v1/account-applications/drafts
+Authorization: Bearer <access-token>
+Idempotency-Key: <stable-per-review-key>
+Content-Type: application/json
+```
+
+Example request:
+
+```json
+{
+  "clientId": "C12345",
+  "accountType": "BROKERAGE",
+  "ownership": "JOINT",
+  "baseCurrency": "SGD",
+  "jointOwner": {
+    "name": "Jordan Morgan",
+    "taxResidency": "Singapore"
+  }
+}
+```
+
+Example response:
+
+```json
+{
+  "applicationId": "AO-1B722944",
+  "status": "DRAFT",
+  "clientId": "C12345"
+}
+```
+
+The graph generates an idempotency key when it prepares each review summary and persists it in LangGraph state. The same key is sent on retries for that approved review. An edited application gets a new review version and a new key. The Java service must persist and enforce idempotency by key; the local mock adapter only simulates this within the running backend process.
+
+The graph calls this endpoint only after the explicit approval interrupt returns APPROVED. HTTP errors, invalid response payloads, unexpected statuses and client-ID mismatches fail the run; the agent does not fabricate a successful draft.
 
 **Configuration**
 
@@ -163,7 +201,7 @@ Set `LLM_ENABLED=false` to test the protocol using deterministic regex fallback 
 - Every edited summary increments `reviewVersion` and requires a new approval interrupt. Previous approval does not carry forward.
 - Angular resumes the same `threadId` with the interrupt ID and structured payload. The LLM does not decide approval.
 
-The approval payload is a POC interaction contract, not a production authorization mechanism. In production, bind the decision to an authenticated RM identity, application version/hash, entitlements, audit event and server-side approval policy. Never treat a browser-supplied boolean as sufficient authorization.
+The approval payload is a POC interaction contract, not a production authorization mechanism. The draft adapter's idempotency key protects retry behaviour, but it does not replace server-side approval authorization. In production, bind the decision to an authenticated RM identity, application version/hash, entitlements, audit event and server-side approval policy. Never treat a browser-supplied boolean as sufficient authorization.
 
 ## Manual conversational test scenarios
 1. Start a joint brokerage account request, provide joint-owner details, and wait for the summary.
@@ -174,7 +212,7 @@ The approval payload is a POC interaction contract, not a production authorizati
 6. Try an unclear edit. The agent should ask for a specific field and value rather than silently changing state.
 
 ## Important limitations and controls
-- Java Client Experience API integration is configurable; mock mode is the default. Draft creation remains a mock implementation in `backend/graph.py` until Milestone 5B.
+- Java Client and Draft Application Experience API integration is configurable; mock mode is the default. The HTTP contract and response fields are hypothetical and must be aligned with the real Java OpenAPI specification before production use.
 - The extraction fallback supports only a small set of common edits. LLM extraction quality depends on the configured model.
 - PostgreSQL checkpointing persists LangGraph state and interrupts, but does not replace a business-owned application database or audit system. Keep authoritative application records and approval evidence in the appropriate Java/Pega services.
 - The local Docker Compose credentials are intentionally simple and must never be used outside local development.
@@ -185,7 +223,7 @@ The approval payload is a POC interaction contract, not a production authorizati
 - This is a development starter, not a production-ready account-opening system.
 
 ## Next increments
-1. Replace mock profile/draft functions with Java Experience API clients.
+1. Align the hypothetical Java API contracts with the real OpenAPI specifications and authentication model.
 2. Add authenticated thread ownership, refresh recovery and durable application identifiers.
 3. Propagate authenticated RM identity and entitlements into the workflow.
 4. Integrate Pega workflow and downstream custody adapters.
