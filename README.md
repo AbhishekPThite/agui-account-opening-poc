@@ -53,7 +53,7 @@ AG-UI endpoint: `POST http://localhost:8000/agent`
 
 ## Configure durable PostgreSQL checkpointing
 
-The default `CHECKPOINTER_BACKEND=memory` preserves the previous local behaviour. To test durable state:
+The default `CHECKPOINTER_BACKEND=memory` preserves the previous local behaviour. PostgreSQL mode uses `AsyncPostgresSaver` because the AG-UI adapter uses LangGraph's asynchronous state APIs. To test durable state:
 
 1. Start the local PostgreSQL container from the repository root:
 
@@ -82,7 +82,7 @@ The default `CHECKPOINTER_BACKEND=memory` preserves the previous local behaviour
 
 4. Check the backend health response. It should report `"checkpointer": "postgres"`.
 
-The application initializes the PostgreSQL connection pool and runs the LangGraph checkpoint schema migrations during startup. It uses `PostgresSaver` with Psycopg 3, a connection pool, dictionary row factory, autocommit and prepared statements disabled for compatibility. The pool is closed on application shutdown. PostgreSQL tables are created by the checkpointer's `setup()` call.
+The application initializes the PostgreSQL connection pool and runs the LangGraph checkpoint schema migrations during startup. It uses `AsyncPostgresSaver` with Psycopg 3's `AsyncConnectionPool`, dictionary row factory, autocommit and prepared statements disabled for compatibility. The async pool and saver are created inside FastAPI's running lifespan event loop, and the graph is compiled after saver initialization. The pool is closed on application shutdown. PostgreSQL tables are created by the checkpointer's async `setup()` call.
 
 ## Persistence test — survive a backend restart
 
