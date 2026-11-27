@@ -13,12 +13,15 @@ from checkpointer import (
     setup_checkpointer,
 )
 from graph import build_graph
+from enterprise_api import JavaExperienceApi
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     saver = await setup_checkpointer()
-    graph = build_graph(checkpointer_override=saver)
+    client_api = JavaExperienceApi()
+    await client_api.start()
+    graph = build_graph(checkpointer_override=saver, client_api=client_api)
     agui_agent = LangGraphAgent(
         name="account-opening-agent",
         graph=graph,
@@ -30,12 +33,13 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
+        await client_api.close()
         await close_checkpointer()
 
 
 app = FastAPI(
     title="Wealth Account Opening AG-UI POC",
-    version="0.3.2",
+    version="0.4.0",
     lifespan=lifespan,
 )
 
