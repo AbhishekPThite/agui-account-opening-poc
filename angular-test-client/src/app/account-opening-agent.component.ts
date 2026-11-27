@@ -105,6 +105,14 @@ export class AccountOpeningAgentComponent {
     this.send(message);
   }
 
+  sendProductFeaturesPrefill(): void {
+    const message = this.conversationText().trim();
+    if (!message || this.busy() || this.uiState()?.widgetId !== 'PRODUCT_FEATURES_FORM') return;
+
+    this.conversationText.set('');
+    this.send(message);
+  }
+
   sendEditRequest(): void {
     const message = this.conversationText().trim();
     const interruptId = this.pendingInterruptId();
