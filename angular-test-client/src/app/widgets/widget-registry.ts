@@ -4,7 +4,8 @@ import {
   AccountSummaryComponent,
   DraftConfirmationComponent,
   DynamicFormComponent,
-  InformationAlertComponent
+  InformationAlertComponent,
+  ProfileAssessmentComponent
 } from './widget-components';
 
 export const WIDGET_REGISTRY: Record<string, Type<AgentWidgetInstance>> = {
@@ -12,5 +13,6 @@ export const WIDGET_REGISTRY: Record<string, Type<AgentWidgetInstance>> = {
   ACCOUNT_SETUP_FORM: DynamicFormComponent,
   APPLICATION_SUMMARY: AccountSummaryComponent,
   DRAFT_CONFIRMATION: DraftConfirmationComponent,
-  INFORMATION_ALERT: InformationAlertComponent
+  INFORMATION_ALERT: InformationAlertComponent,
+  PROFILE_ASSESSMENT: ProfileAssessmentComponent
 };
