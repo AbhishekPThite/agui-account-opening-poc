@@ -27,6 +27,7 @@ class AccountOpeningState(TypedDict, total=False):
     approval_status: str
     review_action: str
     review_revision: int
+    draft_idempotency_key: str
 
 
 EDITABLE_FIELDS = {
@@ -167,6 +168,7 @@ def prepare_ui(state: AccountOpeningState) -> dict[str, Any]:
         "approval_status": "PENDING",
         "review_action": "",
         "review_revision": revision,
+        "draft_idempotency_key": uuid.uuid4().hex,
         "messages": [AIMessage(content=message)],
     }
 
@@ -273,29 +275,48 @@ async def await_human_approval(state: AccountOpeningState) -> dict[str, Any]:
     }
 
 
-def create_mock_draft(state: AccountOpeningState) -> dict[str, Any]:
+async def create_draft(
+    state: AccountOpeningState,
+    draft_api: Any | None = None,
+) -> dict[str, Any]:
+    """Call the authoritative Draft Application API only after explicit approval."""
     if state.get("approval_status") != "APPROVED":
         raise ValueError("Draft creation blocked: explicit application approval is required.")
+    if draft_api is None:
+        raise RuntimeError("Draft Application API adapter was not configured.")
 
-    draft = {
-        "applicationId": f"AO-{uuid.uuid4().hex[:8].upper()}",
-        "status": "DRAFT",
+    idempotency_key = state.get("draft_idempotency_key")
+    if not idempotency_key:
+        raise ValueError("Draft creation blocked: idempotency key is missing.")
+
+    application_request: dict[str, Any] = {
         "clientId": state["client_id"],
         "accountType": state["account_type"],
         "ownership": state["ownership"],
         "baseCurrency": state["base_currency"],
-        "jointOwner": {
+    }
+    if state.get("ownership") == "JOINT":
+        application_request["jointOwner"] = {
             "name": state.get("joint_owner_name", ""),
             "taxResidency": state.get("joint_owner_tax_residency", ""),
-        } if state.get("ownership") == "JOINT" else None,
-    }
+        }
+
+    draft = await draft_api.create_draft(application_request, idempotency_key)
+    logger_message = (
+        f"Account-opening draft {draft['applicationId']} was created successfully. "
+        "The Draft Application API returned the authoritative draft identifier and status."
+    )
     return {
         "application": draft,
         "ui": {
             "mode": "COMPLETE",
             "widgetId": "DRAFT_CONFIRMATION",
             "title": "Draft created",
-            "description": "A mock account-opening draft was created after explicit confirmation. No real account has been opened.",
+            "description": (
+                "A mock draft was created by the local adapter."
+                if getattr(draft_api, "mode", "mock") == "mock"
+                else "A draft was created by the Java Draft Application Experience API. No account has been submitted or opened."
+            ),
             "fields": [],
             "data": {
                 "applicationId": draft["applicationId"],
@@ -303,9 +324,8 @@ def create_mock_draft(state: AccountOpeningState) -> dict[str, Any]:
                 "clientId": draft["clientId"],
             },
         },
-        "messages": [AIMessage(content=f"Account-opening draft {draft['applicationId']} was created successfully. No account has been submitted or opened.")],
+        "messages": [AIMessage(content=logger_message)],
     }
-
 
 def route_after_requirements(state: AccountOpeningState) -> str:
     return "wait_for_input" if state.get("missing_fields") else "await_approval"
@@ -322,6 +342,7 @@ def route_after_approval(state: AccountOpeningState) -> str:
 def build_graph(
     checkpointer_override: Any | None = None,
     client_api: Any | None = None,
+    draft_api: Any | None = None,
 ):
     workflow = StateGraph(AccountOpeningState)
     workflow.add_node("understand_request", understand_request)
@@ -332,7 +353,10 @@ def build_graph(
     workflow.add_node("determine_requirements", determine_requirements)
     workflow.add_node("prepare_ui", prepare_ui)
     workflow.add_node("await_approval", await_human_approval)
-    workflow.add_node("create_draft", create_mock_draft)
+    async def create_draft_node(state: AccountOpeningState) -> dict[str, Any]:
+        return await create_draft(state, draft_api)
+
+    workflow.add_node("create_draft", create_draft_node)
 
     workflow.add_edge(START, "understand_request")
     workflow.add_edge("understand_request", "retrieve_client")
