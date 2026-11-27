@@ -87,10 +87,20 @@ class ProductFeatureTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "greater than zero"):
             asyncio.run(understand_request(bad_state))
 
-    def test_incomplete_product_features_are_rejected(self):
+    def test_brokerage_feature_fields_are_optional_and_generic(self):
         payload = {"formId": "PRODUCT_FEATURES"}
         state = {
             "product_type": "BROKERAGE",
+            "messages": [HumanMessage(content="POC_FORM_SUBMISSION:" + json.dumps(payload))],
+        }
+        result = asyncio.run(understand_request(state))
+        self.assertEqual(result["product_features"], {})
+        self.assertTrue(result["product_features_completed"])
+
+    def test_incomplete_credit_facility_features_are_rejected(self):
+        payload = {"formId": "PRODUCT_FEATURES", "requestedCreditLimit": "1000"}
+        state = {
+            "product_type": "CREDIT_FACILITY",
             "messages": [HumanMessage(content="POC_FORM_SUBMISSION:" + json.dumps(payload))],
         }
         with self.assertRaisesRegex(ValueError, "Product features are incomplete"):
