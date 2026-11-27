@@ -400,3 +400,33 @@ Manual checks:
 3. On either journey, add a beneficiary and verify the draft request includes `beneficiaries`.
 4. Repeat and select **Skip beneficiary**; the journey must proceed and the draft request must omit `beneficiaries`.
 5. Try submitting the beneficiary form with all fields blank; it should also proceed without blocking.
+
+
+## Conversational account setup prefill (Milestone 9A)
+
+The Account Setup screen now supports conversational prefill. While the `ACCOUNT_SETUP_FORM` is active, the RM can describe the desired account in the chat panel, for example:
+
+> Make this a joint brokerage account with margin enabled and call it Family Portfolio.
+
+The reusable account-request extractor returns only supported account setup fields:
+- Product: `BROKERAGE` or `CREDIT_FACILITY`.
+- Registration: `INDIVIDUAL`, `INDIVIDUAL_TOD`, `JOINT` or `JOINT_TOD`.
+- Account nickname: explicitly stated text.
+- Margin: `NONE` or `MARGIN`.
+
+LangGraph validates enum values and merges only extracted values into the checkpointed state. Unmentioned values remain unchanged. The next UI state snapshot carries those values as form defaults, and Angular refreshes the visible form from that backend snapshot. The RM must still review the fields and select **Continue**; a chat message never submits the form or marks account setup complete.
+
+This increment uses the configured LLM through the existing `extract_account_request` path. If `LLM_ENABLED=false`, the conversational extraction returns no values; the standard form remains available for manual entry. The feature is limited to Account Setup in 9A. Conversational Risk Assessment and Product Features are future increments.
+
+Run the focused backend tests from the backend directory:
+
+```bash
+python -m unittest test_conversational_account_setup.py -v
+```
+
+Manual check:
+1. Start a new journey and wait for the Account Setup form.
+2. Enter: `Make this a joint brokerage account with margin enabled and call it Family Portfolio.`
+3. Select **Prefill account setup** and verify Product, Registration, Nickname and Margin are populated.
+4. Enter a follow-up: `Change the nickname to Family Brokerage.` Verify only the nickname changes and the other values remain.
+5. Verify the form is not submitted until you select **Continue**.
