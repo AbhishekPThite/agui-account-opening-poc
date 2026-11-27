@@ -33,6 +33,8 @@ class AccountOpeningState(TypedDict, total=False):
     margin_option: str
     account_setup_complete: bool
     profile_confirmed: bool
+    profile_capture_requested: bool
+    profile_data_submitted: bool
     profile_assessment: dict[str, Any]
     confirmed_profile_data: dict[str, Any]
     application_data: dict[str, Any]
@@ -106,6 +108,7 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
     setup_submitted = form_submission and extracted.get("formId") == "ACCOUNT_SETUP"
     profile_confirmed = form_submission and extracted.get("formId") == "PROFILE_CONFIRMATION"
     profile_capture = form_submission and extracted.get("formId") == "PROFILE_DATA_CAPTURE"
+    profile_capture_requested = form_submission and extracted.get("formId") == "PROFILE_CAPTURE_REQUEST"
     captured_values = {
         str(key): value for key, value in extracted.items()
         if key not in {"formId", "clientId"} and value is not None and str(value).strip() != ""
@@ -120,7 +123,9 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
         "account_nickname": str(extracted.get("accountNickname") or state.get("account_nickname") or "Brokerage 1"),
         "margin_option": str(extracted.get("marginOption") or state.get("margin_option", "NONE")).upper(),
         "account_setup_complete": setup_submitted or state.get("account_setup_complete", False),
-        "profile_confirmed": (profile_confirmed or profile_capture) or state.get("profile_confirmed", False),
+        "profile_confirmed": profile_confirmed or state.get("profile_confirmed", False),
+        "profile_capture_requested": profile_capture_requested,
+        "profile_data_submitted": profile_capture or state.get("profile_data_submitted", False),
         "confirmed_profile_data": {
             **state.get("confirmed_profile_data", {}),
             **captured_values,
@@ -152,6 +157,10 @@ def prepare_account_setup(state: AccountOpeningState) -> dict[str, Any]:
 
 
 def route_after_setup(state: AccountOpeningState) -> str:
+    if state.get("profile_capture_requested"):
+        return "capture_profile"
+    if state.get("profile_data_submitted"):
+        return "retrieve_client"
     if state.get("profile_confirmed"):
         return "continue_journey"
     if state.get("account_setup_complete"):
@@ -525,7 +534,8 @@ def build_graph(
     workflow.add_edge(START, "understand_request")
     workflow.add_conditional_edges(
         "understand_request", route_after_setup,
-        {"show_setup": "prepare_account_setup", "retrieve_client": "retrieve_client", "continue_journey": "determine_requirements"},
+        {"show_setup": "prepare_account_setup", "retrieve_client": "retrieve_client",
+         "continue_journey": "determine_requirements", "capture_profile": "prepare_profile_capture"},
     )
     workflow.add_edge("prepare_account_setup", END)
     workflow.add_edge("retrieve_client", "assess_client_profile")
