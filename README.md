@@ -283,6 +283,37 @@ python -m unittest test_requirements_engine.py -v
 ```
 
 
+## Product-specific feature capture (Milestone 8D)
+
+After the mandatory risk-assessment step, the graph renders a feature form selected deterministically from the account product type.
+
+**Brokerage**
+- Trading access: `STANDARD` or `ACTIVE`.
+- Cash management: `YES` or `NO`.
+- Dividend reinvestment: `YES` or `NO`.
+
+**Credit Facility**
+- Requested credit limit: positive numeric amount.
+- Proposed collateral: `SECURITIES`, `CASH` or `OTHER`.
+- Facility purpose: `LIQUIDITY`, `INVESTMENT` or `OTHER`.
+
+The product feature schemas live in `backend/requirements_engine.py`. The backend selects the schema from the already-selected product, validates all required fields, checks enumerated values and rejects a non-positive credit limit. The graph cannot prepare the application review until the selected product's feature form is completed. The submitted values are checkpointed, shown in the review summary and sent to the Draft Application API under `productFeatures`. The local mock draft response echoes this object.
+
+These are illustrative POC fields and enumerations, not approved product terms, trading permissions, credit underwriting criteria or collateral acceptance rules. In particular, selecting a feature does not grant trading access or approve a credit facility. Align the schema and validation with the actual product catalog, jurisdiction, risk controls and Java OpenAPI contract before production.
+
+Run backend tests from the backend directory:
+
+```bash
+python -m unittest test_requirements_engine.py test_risk_assessment.py test_product_features.py -v
+```
+
+Manual checks:
+1. Start a new Brokerage journey and complete profile, owner, beneficiary and risk steps. Verify the Brokerage form contains only trading access, cash management and dividend reinvestment.
+2. Complete it and verify the application summary contains `productFeatures`.
+3. Start a new Credit Facility journey and verify the form instead contains requested credit limit, proposed collateral and facility purpose.
+4. Submit zero or a negative credit limit using a direct structured request and verify the backend rejects it.
+5. Verify the approved mock draft request/response carries the selected product features.
+
 ## Mandatory risk assessment (Milestone 8C)
 
 After owner and optional beneficiary capture, the graph presents a mandatory risk-assessment form before it can prepare the application review.
