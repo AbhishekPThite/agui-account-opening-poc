@@ -40,6 +40,8 @@ class AccountOpeningState(TypedDict, total=False):
     confirmed_profile_data: dict[str, Any]
     application_data: dict[str, Any]
     requirements_assessment: dict[str, Any]
+    beneficiary_data: dict[str, Any]
+    beneficiary_capture_completed: bool
 
 
 EDITABLE_FIELDS = {
@@ -111,6 +113,13 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
     profile_confirmed = form_submission and extracted.get("formId") == "PROFILE_CONFIRMATION"
     profile_capture = form_submission and extracted.get("formId") == "PROFILE_DATA_CAPTURE"
     profile_capture_requested = form_submission and extracted.get("formId") == "PROFILE_CAPTURE_REQUEST"
+    beneficiary_capture = form_submission and extracted.get("formId") == "BENEFICIARY_CAPTURE"
+    beneficiary_skip = form_submission and extracted.get("formId") == "BENEFICIARY_SKIP"
+    beneficiary_values = {
+        key: str(extracted.get(key, "")).strip()
+        for key in ("beneficiaryFullName", "beneficiaryRelationship", "beneficiaryDateOfBirth")
+        if str(extracted.get(key, "")).strip()
+    } if beneficiary_capture else {}
     captured_values = {
         str(key): value for key, value in extracted.items()
         if key not in {"formId", "clientId"} and value is not None and str(value).strip() != ""
@@ -142,6 +151,14 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
             **state.get("application_data", {}),
             **profile_values_to_merge,
         },
+        "beneficiary_data": {
+            **state.get("beneficiary_data", {}),
+            **beneficiary_values,
+        },
+        "beneficiary_capture_completed": (
+            beneficiary_capture or beneficiary_skip
+            or state.get("beneficiary_capture_completed", False)
+        ),
         "joint_owner_name": str(extracted.get("jointOwnerName") or owner or state.get("joint_owner_name", "")),
         "joint_owner_tax_residency": str(extracted.get("jointOwnerTaxResidency") or tax or state.get("joint_owner_tax_residency", "")),
     }
@@ -303,6 +320,24 @@ def determine_requirements(state: AccountOpeningState) -> dict[str, Any]:
     }
 
 
+def prepare_beneficiary_capture(state: AccountOpeningState) -> dict[str, Any]:
+    """Offer an optional single-beneficiary capture step for every registration."""
+    beneficiary = state.get("beneficiary_data", {})
+    ui = {
+        "mode": "FORM",
+        "widgetId": "BENEFICIARY_CAPTURE",
+        "title": "Beneficiary details (optional)",
+        "description": "You may add one beneficiary now or skip this step and continue. Beneficiary details are optional for every supported registration type in this POC.",
+        "fields": [
+            {"name": "beneficiaryFullName", "label": "Beneficiary full name", "type": "text", "required": False, "defaultValue": beneficiary.get("beneficiaryFullName", ""), "placeholder": "Full name"},
+            {"name": "beneficiaryRelationship", "label": "Relationship to account owner", "type": "text", "required": False, "defaultValue": beneficiary.get("beneficiaryRelationship", ""), "placeholder": "e.g. spouse, child"},
+            {"name": "beneficiaryDateOfBirth", "label": "Beneficiary date of birth", "type": "date", "required": False, "defaultValue": beneficiary.get("beneficiaryDateOfBirth", "")},
+        ],
+        "data": {"clientId": state.get("client_id", ""), "optional": True},
+    }
+    return {"ui": ui, "messages": [AIMessage(content="Beneficiary details are optional. Add them if available, or skip to continue.") ]}
+
+
 def prepare_ui(state: AccountOpeningState) -> dict[str, Any]:
     if state.get("missing_fields"):
         ui = {
@@ -317,6 +352,7 @@ def prepare_ui(state: AccountOpeningState) -> dict[str, Any]:
                     "type": "text",
                     "required": True,
                     "placeholder": "e.g. Jordan Morgan",
+                    "defaultValue": state.get("joint_owner_name", ""),
                 },
                 {
                     "name": "jointOwnerTaxResidency",
@@ -324,6 +360,7 @@ def prepare_ui(state: AccountOpeningState) -> dict[str, Any]:
                     "type": "text",
                     "required": True,
                     "placeholder": "e.g. Singapore",
+                    "defaultValue": state.get("joint_owner_tax_residency", ""),
                 },
             ],
         }
@@ -351,6 +388,8 @@ def prepare_ui(state: AccountOpeningState) -> dict[str, Any]:
             "ownership": state.get("ownership", ""),
             "jointOwnerName": state.get("joint_owner_name", "") or "—",
             "jointOwnerTaxResidency": state.get("joint_owner_tax_residency", "") or "—",
+            "beneficiaryName": state.get("beneficiary_data", {}).get("beneficiaryFullName", "Not provided"),
+            "beneficiaryRelationship": state.get("beneficiary_data", {}).get("beneficiaryRelationship", "Not provided"),
             "kycStatus": profile.get("kycStatus", "UNKNOWN"),
             "requirements": "; ".join(
                 f"{item['label']}: {item['status']}"
@@ -499,6 +538,13 @@ async def create_draft(
             "name": state.get("joint_owner_name", ""),
             "taxResidency": state.get("joint_owner_tax_residency", ""),
         }
+    beneficiary = state.get("beneficiary_data", {})
+    if beneficiary:
+        application_request["beneficiaries"] = [{
+            "fullName": beneficiary.get("beneficiaryFullName", ""),
+            "relationship": beneficiary.get("beneficiaryRelationship", ""),
+            "dateOfBirth": beneficiary.get("beneficiaryDateOfBirth", ""),
+        }]
 
     draft = await draft_api.create_draft(application_request, idempotency_key)
     logger_message = (
@@ -553,6 +599,7 @@ def build_graph(
     workflow.add_node("assess_client_profile", assess_client_profile)
     workflow.add_node("prepare_profile_assessment", prepare_profile_assessment)
     workflow.add_node("prepare_profile_capture", prepare_profile_capture)
+    workflow.add_node("prepare_beneficiary_capture", prepare_beneficiary_capture)
     workflow.add_node("determine_requirements", determine_requirements)
     workflow.add_node("prepare_ui", prepare_ui)
     workflow.add_node("await_approval", await_human_approval)
@@ -576,7 +623,18 @@ def build_graph(
     )
     workflow.add_edge("prepare_profile_assessment", END)
     workflow.add_edge("prepare_profile_capture", END)
-    workflow.add_edge("determine_requirements", "prepare_ui")
+    def route_after_data_requirements(state: AccountOpeningState) -> str:
+        if state.get("missing_fields"):
+            return "joint_owner"
+        if not state.get("beneficiary_capture_completed"):
+            return "beneficiary"
+        return "review"
+
+    workflow.add_conditional_edges(
+        "determine_requirements", route_after_data_requirements,
+        {"joint_owner": "prepare_ui", "beneficiary": "prepare_beneficiary_capture", "review": "prepare_ui"},
+    )
+    workflow.add_edge("prepare_beneficiary_capture", END)
     workflow.add_conditional_edges(
         "prepare_ui", route_after_requirements,
         {"wait_for_input": END, "await_approval": "await_approval"},
