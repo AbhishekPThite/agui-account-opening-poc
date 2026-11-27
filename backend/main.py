@@ -21,7 +21,7 @@ async def lifespan(app: FastAPI):
     saver = await setup_checkpointer()
     client_api = JavaExperienceApi()
     await client_api.start()
-    graph = build_graph(checkpointer_override=saver, client_api=client_api)
+    graph = build_graph(checkpointer_override=saver, client_api=client_api, draft_api=client_api)
     agui_agent = LangGraphAgent(
         name="account-opening-agent",
         graph=graph,
