@@ -89,6 +89,14 @@ export class AccountOpeningAgentComponent {
     this.send(`Here are the requested account-opening details: ${details}`);
   }
 
+  sendSetupPrefill(): void {
+    const message = this.conversationText().trim();
+    if (!message || this.busy() || this.uiState()?.widgetId !== 'ACCOUNT_SETUP_FORM') return;
+
+    this.conversationText.set('');
+    this.send(message);
+  }
+
   sendEditRequest(): void {
     const message = this.conversationText().trim();
     const interruptId = this.pendingInterruptId();
