@@ -179,7 +179,7 @@ def regex_edit_extraction(text: str) -> dict[str, str]:
         "ownership": r"ownership\s+(?:to|is)\s+(JOINT|INDIVIDUAL)",
         "base_currency": r"(?:base )?currency\s+(?:to|is)\s+(USD|EUR|GBP|SGD|HKD|AED)",
         "joint_owner_name": r"(?:joint owner|co-owner)(?: name)?\s+(?:to|is)\s+([A-Za-z][A-Za-z .'-]+?)(?:\.|,|;|$)",
-        "joint_owner_tax_residency": r"(?:joint owner )?tax residency\s+(?:to|is)\s+([A-Za-z][A-Za-z .'-]+?)(?:\.|,|;|$)",
+        "joint_owner_tax_residency": r"(?:joint owner(?:'s)? )?tax residency\s+(?:to|is)\s+([A-Za-z][A-Za-z .'-]+?)(?:\.|,|;|$)",
     }
     return {
         key: extract_value(pattern, text)
