@@ -17,6 +17,32 @@
 
     <p class="error" *ngIf="error()">{{error()}}</p>
 
+    <section class="journey-tracker panel" *ngIf="uiState()?.journeyStatus as journey">
+        <div class="journey-heading">
+            <div>
+                <div class="eyebrow">ACCOUNT OPENING JOURNEY</div>
+                <h2>Application progress</h2>
+            </div>
+            <div class="journey-count">{{journey.completedCount}} of {{journey.totalCount}} completed</div>
+        </div>
+        <div class="journey-track" role="list" aria-label="Account opening progress">
+            <div class="journey-stage" role="listitem" *ngFor="let stage of journey.stages; let last = last">
+                <div class="stage-topline">
+                    <span class="stage-marker" [ngClass]="'status-' + stage.status.toLowerCase().replace('_', '-')">
+                        <span *ngIf="stage.status === 'COMPLETED'">✓</span>
+                        <span *ngIf="stage.status !== 'COMPLETED'">{{stage.id === journey.currentStage ? '●' : '○'}}</span>
+                    </span>
+                    <span class="stage-connector" *ngIf="!last"></span>
+                </div>
+                <div class="stage-label">{{stage.label}}</div>
+                <span class="stage-status" [ngClass]="'status-' + stage.status.toLowerCase().replace('_', '-')">
+                    {{stage.status.replace('_', ' ')}}
+                </span>
+            </div>
+        </div>
+    </section>
+
+
     <section class="panel" *ngIf="uiState()">
         <app-widget-renderer [ui]="uiState()" (submit)="submitWidget($event)"></app-widget-renderer>
     </section>
