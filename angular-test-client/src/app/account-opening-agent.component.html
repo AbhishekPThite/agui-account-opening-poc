@@ -65,6 +65,25 @@
         <app-widget-renderer [ui]="uiState()" (submit)="submitWidget($event)"></app-widget-renderer>
     </section>
 
+    <section class="panel conversation-panel" *ngIf="uiState()?.widgetId === 'ACCOUNT_SETUP_FORM'">
+        <div class="eyebrow">CONVERSATION · ACCOUNT SETUP</div>
+        <h2>Describe the account you want</h2>
+        <p>Tell the assistant the product, registration type, nickname or margin preference. It will prefill the form for your review; it will not submit the form.</p>
+        <label for="setup-prefill">Your account details</label>
+        <textarea
+            id="setup-prefill"
+            rows="2"
+            [ngModel]="conversationText()"
+            (ngModelChange)="conversationText.set($event)"
+            (keydown.control.enter)="sendSetupPrefill()"
+            (keydown.meta.enter)="sendSetupPrefill()"
+            placeholder="e.g. Make this a joint brokerage account with margin enabled…"></textarea>
+        <button class="primary" (click)="sendSetupPrefill()" [disabled]="busy() || !conversationText().trim()">
+            {{busy() ? 'Prefilling…' : 'Prefill account setup'}}
+        </button>
+        <p class="hint">Review the populated fields and select Continue to submit the account setup.</p>
+    </section>
+
     <section class="panel conversation-panel" *ngIf="pendingInterruptId()">
         <div class="eyebrow">CONVERSATION · APPLICATION REVIEW</div>
         <h2>Would you like to change anything?</h2>
