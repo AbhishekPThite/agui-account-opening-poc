@@ -331,17 +331,41 @@ def build_journey_status(state: AccountOpeningState) -> dict[str, Any]:
     ui = state.get("ui", {})
     widget_id = ui.get("widgetId", "")
     profile_assessment = state.get("profile_assessment", {})
-    profile_confirmed = bool(state.get("profile_confirmed"))
     profile_has_actions = bool(profile_assessment.get("actionRequired"))
     ownership = str(state.get("ownership", "INDIVIDUAL")).upper()
     joint_required = ownership in {"JOINT", "JOINT_TOD"}
-    joint_complete = (
-        not joint_required
-        or bool(state.get("joint_owner_name") and state.get("joint_owner_tax_residency"))
-    )
-    setup_complete = bool(state.get("account_setup_complete"))
-    risk_complete = bool(state.get("risk_assessment_completed"))
-    features_complete = bool(state.get("product_features_completed"))
+    product_type = str(state.get("product_type") or state.get("account_type") or "").upper()
+    account_missing = []
+    if product_type not in {"BROKERAGE", "CREDIT_FACILITY"}:
+        account_missing.append("productType")
+    if ownership not in {"INDIVIDUAL", "INDIVIDUAL_TOD", "JOINT", "JOINT_TOD"}:
+        account_missing.append("registrationType")
+    if not str(state.get("account_nickname") or "Brokerage 1").strip():
+        account_missing.append("accountNickname")
+    if joint_required:
+        if not str(state.get("joint_owner_name", "")).strip():
+            account_missing.append("jointOwnerName")
+        if not str(state.get("joint_owner_tax_residency", "")).strip():
+            account_missing.append("jointOwnerTaxResidency")
+
+    risk = state.get("risk_assessment", {})
+    investment = (state.get("client_profile", {}).get("investmentProfile") or {})
+    risk_values = {
+        "investmentObjectives": risk.get("investmentObjectives", investment.get("investmentObjectives")),
+        "investmentTimeHorizon": risk.get("investmentTimeHorizon"),
+        "liquidityNeeds": risk.get("liquidityNeeds"),
+        "riskTolerance": risk.get("riskTolerance", investment.get("riskTolerance")),
+    }
+    risk_missing = [key for key, value in risk_values.items() if value is None or value == "" or value == []]
+
+    feature_schema = build_product_feature_requirements(product_type) if product_type in {"BROKERAGE", "CREDIT_FACILITY"} else {"fields": []}
+    features = state.get("product_features", {})
+    feature_missing = [
+        field["name"] for field in feature_schema["fields"]
+        if field.get("required")
+        and (features.get(field["name"]) is None or features.get(field["name"]) == "")
+        and (field.get("defaultValue") is None or field.get("defaultValue") == "")
+    ]
     draft_created = widget_id == "DRAFT_CONFIRMATION"
 
     current_by_widget = {
@@ -366,33 +390,18 @@ def build_journey_status(state: AccountOpeningState) -> dict[str, Any]:
         {"id": "SUMMARY", "label": "Summary"},
     ]
     statuses: dict[str, str] = {}
-    if profile_confirmed:
-        statuses["PROFILE"] = "COMPLETED"
-    elif profile_has_actions:
-        statuses["PROFILE"] = "ACTION_REQUIRED"
-    elif profile_assessment:
-        statuses["PROFILE"] = "CONFIRMATION_REQUIRED"
-    else:
-        statuses["PROFILE"] = "PENDING"
-
-    if not setup_complete:
-        statuses["ACCOUNT_DETAILS"] = "IN_PROGRESS" if current_stage == "ACCOUNT_DETAILS" else "ACTION_REQUIRED"
-    elif not joint_complete:
-        statuses["ACCOUNT_DETAILS"] = "ACTION_REQUIRED"
-    else:
-        statuses["ACCOUNT_DETAILS"] = "COMPLETED"
-
-    statuses["RISK_PROFILE"] = (
-        "COMPLETED" if risk_complete else
-        "IN_PROGRESS" if current_stage == "RISK_PROFILE" else
-        "ACTION_REQUIRED"
-    )
-    product_selected = bool(state.get("product_type") or state.get("account_type"))
-    statuses["FEATURES"] = (
-        "COMPLETED" if features_complete else
-        "IN_PROGRESS" if current_stage == "FEATURES" else
-        "ACTION_REQUIRED" if product_selected else
+    statuses["PROFILE"] = (
+        "ACTION_REQUIRED" if profile_has_actions else
+        "COMPLETED" if profile_assessment else
         "PENDING"
+    )
+    statuses["ACCOUNT_DETAILS"] = "ACTION_REQUIRED" if account_missing else "COMPLETED"
+    statuses["RISK_PROFILE"] = "ACTION_REQUIRED" if risk_missing else "COMPLETED"
+    product_selected = bool(product_type)
+    statuses["FEATURES"] = (
+        "PENDING" if not product_selected else
+        "ACTION_REQUIRED" if feature_missing else
+        "COMPLETED"
     )
     statuses["SUMMARY"] = (
         "COMPLETED" if draft_created else
@@ -587,7 +596,8 @@ def assess_client_profile(state: AccountOpeningState) -> dict[str, Any]:
             present = value is not None and value != "" and value != []
             label = field.replace("firstName", "First name").replace("lastName", "Last name").replace("dateOfBirth", "Date of birth").replace("taxIdType", "Tax ID type").replace("taxIdMasked", "Tax ID").replace("investmentObjectives", "Investment objectives")
             display = ", ".join(map(str, value)) if isinstance(value, list) else (str(value) if present else "Not provided")
-            rows.append({"label": label, "value": display})
+            rows.append({"name": field, "label": label, "value": display,
+                         "required": field in required, "missing": field in required and not present})
             if present:
                 confirmations.append({"label": f"{name}: {label}", "value": display, "field": path, "required": field in required})
             elif field in required:
@@ -735,6 +745,98 @@ def prepare_beneficiary_capture(state: AccountOpeningState) -> dict[str, Any]:
     return {"ui": ui, "messages": [AIMessage(content="Beneficiary details are optional. Add them if available, or skip to continue.") ]}
 
 
+def build_application_review_sections(state: AccountOpeningState) -> list[dict[str, Any]]:
+    """Build read-only, section-grouped review data for the final application summary."""
+    profile = state.get("client_profile", {})
+    assessment = state.get("profile_assessment", {})
+    ownership = str(state.get("ownership", "INDIVIDUAL")).upper()
+    product_type = str(state.get("product_type") or state.get("account_type") or "")
+    risk = state.get("risk_assessment", {})
+    investment = profile.get("investmentProfile") or {}
+    features = state.get("product_features", {})
+    sections: list[dict[str, Any]] = []
+
+    def field(label: str, value: Any, required: bool = False) -> dict[str, Any]:
+        present = value is not None and value != "" and value != []
+        if isinstance(value, list):
+            display = ", ".join(str(item) for item in value) if value else "Not provided"
+        else:
+            display = str(value) if present else "Not provided"
+        return {"label": label, "value": display, "required": required,
+                "missing": required and not present}
+
+    account_fields = [
+        field("Product type", product_type, True),
+        field("Registration type", ownership, True),
+        field("Account nickname", state.get("account_nickname") or "Brokerage 1", True),
+        field("Margin option", state.get("margin_option", "NONE")),
+    ]
+    if ownership in {"JOINT", "JOINT_TOD"}:
+        account_fields.extend([
+            field("Joint owner full name", state.get("joint_owner_name"), True),
+            field("Joint owner tax residency", state.get("joint_owner_tax_residency"), True),
+        ])
+    beneficiary = state.get("beneficiary_data", {})
+    account_fields.extend([
+        field("Beneficiary full name", beneficiary.get("beneficiaryFullName")),
+        field("Beneficiary relationship", beneficiary.get("beneficiaryRelationship")),
+        field("Beneficiary date of birth", beneficiary.get("beneficiaryDateOfBirth")),
+    ])
+    sections.append({"id": "ACCOUNT_DETAILS", "label": "Account Details",
+                     "status": "ACTION_REQUIRED" if any(x["missing"] for x in account_fields) else "COMPLETED",
+                     "fields": account_fields})
+
+    profile_fields: list[dict[str, Any]] = [
+        field("Client name", profile.get("displayName"), True),
+        field("Client ID", profile.get("clientId"), True),
+        field("KYC status", profile.get("kycStatus")),
+    ]
+    for group in assessment.get("sections", []):
+        for item in group.get("fields", []):
+            profile_fields.append({
+                "label": f"{group.get('name', 'Profile')} · {item.get('label', '')}",
+                "value": item.get("value", "Not provided"),
+                "required": bool(item.get("required")),
+                "missing": bool(item.get("missing")),
+            })
+    sections.append({"id": "PROFILE", "label": "Client Profile",
+                     "status": "ACTION_REQUIRED" if profile_has_missing(profile_fields) else "COMPLETED",
+                     "fields": profile_fields})
+
+    risk_values = {
+        "investmentObjectives": risk.get("investmentObjectives", investment.get("investmentObjectives")),
+        "investmentTimeHorizon": risk.get("investmentTimeHorizon"),
+        "liquidityNeeds": risk.get("liquidityNeeds"),
+        "riskTolerance": risk.get("riskTolerance", investment.get("riskTolerance")),
+    }
+    risk_fields = [
+        field("Investment objectives", risk_values["investmentObjectives"], True),
+        field("Investment time horizon", risk_values["investmentTimeHorizon"], True),
+        field("Liquidity needs", risk_values["liquidityNeeds"], True),
+        field("Risk tolerance", risk_values["riskTolerance"], True),
+    ]
+    sections.append({"id": "RISK_PROFILE", "label": "Risk Assessment",
+                     "status": "ACTION_REQUIRED" if any(x["missing"] for x in risk_fields) else "COMPLETED",
+                     "fields": risk_fields})
+
+    feature_schema = build_product_feature_requirements(product_type) if product_type in {"BROKERAGE", "CREDIT_FACILITY"} else {"fields": []}
+    feature_fields = [
+        field(definition["label"],
+              features.get(definition["name"], definition.get("defaultValue")),
+              bool(definition.get("required")))
+        for definition in feature_schema["fields"]
+    ]
+    sections.append({"id": "FEATURES", "label": "Product Features",
+                     "status": "PENDING" if not product_type else
+                     "ACTION_REQUIRED" if any(x["missing"] for x in feature_fields) else "COMPLETED",
+                     "fields": feature_fields})
+    return sections
+
+
+def profile_has_missing(fields: list[dict[str, Any]]) -> bool:
+    return any(item.get("missing") for item in fields)
+
+
 def prepare_ui(state: AccountOpeningState) -> dict[str, Any]:
     if state.get("missing_fields"):
         ui = {
@@ -796,6 +898,7 @@ def prepare_ui(state: AccountOpeningState) -> dict[str, Any]:
                 for item in state.get("requirements_assessment", {}).get("requirements", [])
             ),
             "reviewVersion": revision,
+            "reviewSections": build_application_review_sections(state),
         },
         "approvalRequired": True,
     }
