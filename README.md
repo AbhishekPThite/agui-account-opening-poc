@@ -283,6 +283,25 @@ python -m unittest test_requirements_engine.py -v
 ```
 
 
+## Journey status model (Milestone 8E.1)
+
+The backend now derives a compact journey-progress model from LangGraph state and attaches it to each rendered UI payload as `ui.journeyStatus`.
+
+The model includes:
+- Ordered stages: Profile, Account Details, Risk Profile, Features and Summary.
+- Per-stage status: `COMPLETED`, `ACTION_REQUIRED`, `CONFIRMATION_REQUIRED`, `IN_PROGRESS` or `PENDING`.
+- `currentStage`, `completedCount`, `totalCount` and `overallStatus`.
+
+Status is deterministic and based on workflow flags, profile assessment and registration type. In particular, joint-owner completion is required only for Joint and Joint TOD; optional beneficiary capture does not block the Account Details stage. Summary becomes complete only when the draft confirmation widget is produced.
+
+This increment exposes the backend model only. The Angular progress tracker and navigation are the next 8E increments.
+
+Run from the backend directory:
+
+```bash
+python -m unittest test_journey_status.py -v
+```
+
 ## Product-specific feature capture (Milestone 8D)
 
 After the mandatory risk-assessment step, the graph renders a feature form selected deterministically from the account product type.
