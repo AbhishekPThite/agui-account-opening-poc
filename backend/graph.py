@@ -326,7 +326,6 @@ def build_graph():
     workflow.add_node("determine_requirements", determine_requirements)
     workflow.add_node("prepare_ui", prepare_ui)
     workflow.add_node("await_approval", await_human_approval)
-    workflow.add_node("apply_edit_revalidation", determine_requirements)
     workflow.add_node("create_draft", create_mock_draft)
 
     workflow.add_edge(START, "understand_request")
