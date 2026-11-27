@@ -10,7 +10,7 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 from checkpointer import checkpointer
 from langgraph.types import interrupt
-from model_client import extract_account_request, extract_risk_assessment, model
+from model_client import extract_account_request, extract_risk_assessment, extract_product_features, model
 from requirements_engine import build_registration_requirements, build_product_feature_requirements
 
 
@@ -84,6 +84,14 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
         active_widget = state.get("ui", {}).get("widgetId")
         if active_widget == "RISK_ASSESSMENT_FORM":
             extracted = await extract_risk_assessment(text)
+        elif active_widget == "PRODUCT_FEATURES_FORM":
+            active_product = str(state.get("product_type", state.get("account_type", ""))).upper()
+            product_schema = build_product_feature_requirements(active_product)
+            extracted = await extract_product_features(
+                text,
+                product_type=active_product,
+                field_definitions=product_schema["fields"],
+            )
         else:
             extracted = await extract_account_request(text)
 
@@ -130,6 +138,10 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
         and state.get("ui", {}).get("widgetId") == "RISK_ASSESSMENT_FORM"
     )
     product_features_submission = form_submission and extracted.get("formId") == "PRODUCT_FEATURES"
+    product_features_prefill = (
+        not form_submission
+        and state.get("ui", {}).get("widgetId") == "PRODUCT_FEATURES_FORM"
+    )
     risk_fields = ("investmentObjectives", "investmentTimeHorizon", "liquidityNeeds", "riskTolerance")
     submitted_risk = {
         key: str(extracted.get(key, "")).strip()
@@ -158,7 +170,7 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
         if not submitted_risk["investmentObjectives"] or invalid_risk:
             raise ValueError("Risk assessment contains invalid values: " + ", ".join(invalid_risk or ["investmentObjectives"]))
     submitted_features: dict[str, Any] = {}
-    if product_features_submission:
+    if product_features_submission or product_features_prefill:
         product_type_for_features = str(state.get("product_type", state.get("account_type", ""))).upper()
         feature_schema = build_product_feature_requirements(product_type_for_features)
         feature_fields = feature_schema["fields"]
@@ -166,7 +178,7 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
             name = field["name"]
             value = str(extracted.get(name, "")).strip()
             if not value:
-                if field.get("required"):
+                if product_features_submission and field.get("required"):
                     raise ValueError("Product features are incomplete. Required fields: " + name)
                 continue
             if field["type"] == "select":
