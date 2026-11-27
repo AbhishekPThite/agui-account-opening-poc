@@ -113,7 +113,25 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
         elif active_widget == "PROFILE_ASSESSMENT":
             extracted = {}
         else:
+            # On the first message, capture explicitly supplied values across
+            # the whole journey, not only the account-setup screen. These
+            # values are staged in state and shown later as form defaults.
             extracted = await extract_account_request(text) if model is not None else {}
+            if model is not None and not active_widget:
+                initial_product = str(
+                    extracted.get("account_type") or extracted.get("productType")
+                    or state.get("product_type") or state.get("account_type") or ""
+                ).upper()
+                initial_risk = await extract_risk_assessment(text)
+                extracted.update(initial_risk)
+                if initial_product in {"BROKERAGE", "CREDIT_FACILITY"}:
+                    initial_schema = build_product_feature_requirements(initial_product)
+                    initial_features = await extract_product_features(
+                        text,
+                        product_type=initial_product,
+                        field_definitions=initial_schema["fields"],
+                    )
+                    extracted.update(initial_features)
 
         if not any(str(value).strip() for value in extracted.values()):
             assistant_answer = await answer_journey_question(
@@ -168,6 +186,7 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
         not form_submission
         and state.get("ui", {}).get("widgetId") == "RISK_ASSESSMENT_FORM"
     )
+    initial_journey_prefill = not form_submission and not active_widget
     product_features_submission = form_submission and extracted.get("formId") == "PRODUCT_FEATURES"
     product_features_prefill = (
         not form_submission
@@ -178,7 +197,7 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
         key: str(extracted.get(key, "")).strip()
         for key in risk_fields
         if str(extracted.get(key, "")).strip()
-    } if (risk_assessment_submission or risk_assessment_prefill) else {}
+    } if (risk_assessment_submission or risk_assessment_prefill or initial_journey_prefill) else {}
     if risk_assessment_submission:
         missing_risk = [key for key in risk_fields if not submitted_risk.get(key)]
         if missing_risk:
@@ -201,7 +220,7 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
         if not submitted_risk["investmentObjectives"] or invalid_risk:
             raise ValueError("Risk assessment contains invalid values: " + ", ".join(invalid_risk or ["investmentObjectives"]))
     submitted_features: dict[str, Any] = {}
-    if product_features_submission or product_features_prefill:
+    if product_features_submission or product_features_prefill or initial_journey_prefill:
         product_type_for_features = str(state.get("product_type", state.get("account_type", ""))).upper()
         feature_schema = build_product_feature_requirements(product_type_for_features)
         feature_fields = feature_schema["fields"]
