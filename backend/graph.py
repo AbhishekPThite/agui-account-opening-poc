@@ -46,6 +46,7 @@ class AccountOpeningState(TypedDict, total=False):
     risk_assessment_completed: bool
     product_features: dict[str, Any]
     product_features_completed: bool
+    journey_status: dict[str, Any]
 
 
 EDITABLE_FIELDS = {
@@ -219,6 +220,97 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
         "joint_owner_name": str(extracted.get("jointOwnerName") or owner or state.get("joint_owner_name", "")),
         "joint_owner_tax_residency": str(extracted.get("jointOwnerTaxResidency") or tax or state.get("joint_owner_tax_residency", "")),
     }
+
+
+def build_journey_status(state: AccountOpeningState) -> dict[str, Any]:
+    """Build a deterministic, UI-agnostic progress model from workflow state."""
+    ui = state.get("ui", {})
+    widget_id = ui.get("widgetId", "")
+    profile_assessment = state.get("profile_assessment", {})
+    profile_confirmed = bool(state.get("profile_confirmed"))
+    profile_has_actions = bool(profile_assessment.get("actionRequired"))
+    ownership = str(state.get("ownership", "INDIVIDUAL")).upper()
+    joint_required = ownership in {"JOINT", "JOINT_TOD"}
+    joint_complete = (
+        not joint_required
+        or bool(state.get("joint_owner_name") and state.get("joint_owner_tax_residency"))
+    )
+    setup_complete = bool(state.get("account_setup_complete"))
+    risk_complete = bool(state.get("risk_assessment_completed"))
+    features_complete = bool(state.get("product_features_completed"))
+    draft_created = widget_id == "DRAFT_CONFIRMATION"
+
+    current_by_widget = {
+        "PROFILE_ASSESSMENT": "PROFILE",
+        "PROFILE_DATA_CAPTURE": "PROFILE",
+        "ACCOUNT_SETUP_FORM": "ACCOUNT_DETAILS",
+        "JOINT_OWNER_FORM": "ACCOUNT_DETAILS",
+        "BENEFICIARY_CAPTURE": "ACCOUNT_DETAILS",
+        "RISK_ASSESSMENT_FORM": "RISK_PROFILE",
+        "PRODUCT_FEATURES_FORM": "FEATURES",
+        "APPLICATION_SUMMARY": "SUMMARY",
+        "DRAFT_CONFIRMATION": "SUMMARY",
+    }
+    current_stage = current_by_widget.get(widget_id)
+
+    stages = [
+        {"id": "PROFILE", "label": "Profile"},
+        {"id": "ACCOUNT_DETAILS", "label": "Account Details"},
+        {"id": "RISK_PROFILE", "label": "Risk Profile"},
+        {"id": "FEATURES", "label": "Features"},
+        {"id": "SUMMARY", "label": "Summary"},
+    ]
+    statuses: dict[str, str] = {}
+    if profile_confirmed:
+        statuses["PROFILE"] = "COMPLETED"
+    elif profile_has_actions:
+        statuses["PROFILE"] = "ACTION_REQUIRED"
+    elif profile_assessment:
+        statuses["PROFILE"] = "CONFIRMATION_REQUIRED"
+    else:
+        statuses["PROFILE"] = "PENDING"
+
+    if not setup_complete:
+        statuses["ACCOUNT_DETAILS"] = "IN_PROGRESS" if current_stage == "ACCOUNT_DETAILS" else "PENDING"
+    elif not joint_complete:
+        statuses["ACCOUNT_DETAILS"] = "ACTION_REQUIRED"
+    else:
+        statuses["ACCOUNT_DETAILS"] = "COMPLETED"
+
+    statuses["RISK_PROFILE"] = (
+        "COMPLETED" if risk_complete else
+        "IN_PROGRESS" if current_stage == "RISK_PROFILE" else
+        "PENDING"
+    )
+    statuses["FEATURES"] = (
+        "COMPLETED" if features_complete else
+        "IN_PROGRESS" if current_stage == "FEATURES" else
+        "PENDING"
+    )
+    statuses["SUMMARY"] = (
+        "COMPLETED" if draft_created else
+        "IN_PROGRESS" if current_stage == "SUMMARY" else
+        "PENDING"
+    )
+
+    for stage in stages:
+        stage["status"] = statuses[stage["id"]]
+    completed_count = sum(1 for stage in stages if stage["status"] == "COMPLETED")
+    return {
+        "stages": stages,
+        "currentStage": current_stage,
+        "completedCount": completed_count,
+        "totalCount": len(stages),
+        "overallStatus": "COMPLETED" if completed_count == len(stages) else "IN_PROGRESS",
+    }
+
+
+def publish_journey_status(state: AccountOpeningState) -> dict[str, Any]:
+    """Attach the same backend-calculated journey model to every rendered widget."""
+    journey_status = build_journey_status(state)
+    ui = dict(state.get("ui", {}))
+    ui["journeyStatus"] = journey_status
+    return {"ui": ui, "journey_status": journey_status}
 
 
 def prepare_account_setup(state: AccountOpeningState) -> dict[str, Any]:
@@ -710,6 +802,7 @@ def build_graph(
     workflow = StateGraph(AccountOpeningState)
     workflow.add_node("understand_request", understand_request)
     workflow.add_node("prepare_account_setup", prepare_account_setup)
+    workflow.add_node("publish_journey_status", publish_journey_status)
     async def retrieve_client_node(state: AccountOpeningState) -> dict[str, Any]:
         return await retrieve_client(state, client_api)
 
@@ -741,8 +834,8 @@ def build_graph(
         lambda state: "continue" if state.get("profile_confirmed") else "review",
         {"continue": "determine_requirements", "review": "prepare_profile_assessment"},
     )
-    workflow.add_edge("prepare_profile_assessment", END)
-    workflow.add_edge("prepare_profile_capture", END)
+    workflow.add_edge("prepare_profile_assessment", "publish_journey_status")
+    workflow.add_edge("prepare_profile_capture", "publish_journey_status")
     def route_after_data_requirements(state: AccountOpeningState) -> str:
         if state.get("missing_fields"):
             return "joint_owner"
@@ -758,11 +851,12 @@ def build_graph(
         "determine_requirements", route_after_data_requirements,
         {"joint_owner": "prepare_ui", "beneficiary": "prepare_beneficiary_capture", "risk_assessment": "prepare_risk_assessment", "product_features": "prepare_product_features", "review": "prepare_ui"},
     )
-    workflow.add_edge("prepare_beneficiary_capture", END)
-    workflow.add_edge("prepare_risk_assessment", END)
-    workflow.add_edge("prepare_product_features", END)
+    workflow.add_edge("prepare_beneficiary_capture", "publish_journey_status")
+    workflow.add_edge("prepare_risk_assessment", "publish_journey_status")
+    workflow.add_edge("prepare_product_features", "publish_journey_status")
+    workflow.add_edge("prepare_ui", "publish_journey_status")
     workflow.add_conditional_edges(
-        "prepare_ui", route_after_requirements,
+        "publish_journey_status", route_after_requirements,
         {"wait_for_input": END, "await_approval": "await_approval"},
     )
     workflow.add_conditional_edges(
