@@ -2,6 +2,7 @@ import { CommonModule } from '@angular/common';
 import {
   Component,
   ComponentRef,
+  AfterViewInit,
   EventEmitter,
   Input,
   OnChanges,
@@ -28,18 +29,28 @@ import { WIDGET_REGISTRY } from './widget-registry';
     .unsupported { padding: 12px; border: 1px solid #d97706; border-radius: 8px; color: #92400e; }
   `]
 })
-export class WidgetRendererComponent implements OnChanges, OnDestroy {
+export class WidgetRendererComponent implements OnChanges, AfterViewInit, OnDestroy {
   @Input() ui: AgentUI | null = null;
   @Output() submit = new EventEmitter<Record<string, unknown>>();
   @ViewChild('widgetHost', { read: ViewContainerRef, static: true })
   private widgetHost!: ViewContainerRef;
 
+  private viewReady = false;
   private componentRef?: ComponentRef<AgentWidgetInstance>;
   private activeWidgetId?: string;
   private submitSubscription?: { unsubscribe(): void };
   unsupportedWidget = '';
 
   ngOnChanges(_changes: SimpleChanges): void {
+    if (this.viewReady) this.renderWidget();
+  }
+
+  ngAfterViewInit(): void {
+    this.viewReady = true;
+    this.renderWidget();
+  }
+
+  private renderWidget(): void {
     if (!this.ui) {
       this.clearWidget();
       return;
