@@ -303,7 +303,7 @@ These are kept as lightweight, generic capture fields. The detailed option sets 
 
 The product feature schemas live in `backend/requirements_engine.py`. The backend selects a lightweight schema from the already-selected product. Brokerage preferences are captured generically without adding product-policy logic to the graph; the credit facility form retains basic required-field and positive-amount validation. The graph cannot prepare the application review until the selected product's feature form is completed. The submitted values are checkpointed, shown in the review summary and sent to the Draft Application API under `productFeatures`. The local mock draft response echoes this object.
 
-These are illustrative POC fields and enumerations, not approved product terms, trading permissions, credit underwriting criteria or collateral acceptance rules. In particular, selecting a feature does not grant trading access or approve a credit facility. Align the schema and validation with the actual product catalog, jurisdiction, risk controls and Java OpenAPI contract before production.
+These are illustrative POC capture fields, not approved product terms, credit underwriting criteria or collateral acceptance rules. Align detailed option sets and validation with the actual product catalog, jurisdiction, risk controls and Java OpenAPI contract before production.
 
 Run backend tests from the backend directory:
 
@@ -312,7 +312,7 @@ python -m unittest test_requirements_engine.py test_risk_assessment.py test_prod
 ```
 
 Manual checks:
-1. Start a new Brokerage journey and complete profile, owner, beneficiary and risk steps. Verify the Brokerage form contains only trading access, cash management and dividend reinvestment.
+1. Start a new Brokerage journey and complete profile, owner, beneficiary and risk steps. Verify the Brokerage form contains Online Access & E-Delivery Preferences, Cash Sweep Options, Margin Information, Tax Information and Proxy Election.
 2. Complete it and verify the application summary contains `productFeatures`.
 3. Start a new Credit Facility journey and verify the form instead contains requested credit limit, proposed collateral and facility purpose.
 4. Submit zero or a negative credit limit using a direct structured request and verify the backend rejects it.
@@ -341,7 +341,7 @@ python -m unittest test_requirements_engine.py test_risk_assessment.py -v
 Manual check:
 1. Start a journey and complete profile confirmation, any required joint-owner information and the beneficiary step.
 2. Verify the risk form prepopulates investment objectives, experience and risk tolerance from the mock client profile.
-3. Verify time horizon, liquidity needs and product knowledge are required if not already present.
+3. Verify time horizon and liquidity needs are required if not already present.
 4. Submit incomplete data through the UI and verify the browser prevents submission. Also verify the backend rejects incomplete structured submissions.
 5. Submit all fields and verify the application summary includes `riskAssessment`.
 6. Approve the review and inspect the mock draft response/logs to confirm the draft request includes `riskAssessment`.
