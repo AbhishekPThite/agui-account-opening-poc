@@ -89,6 +89,23 @@ export class AccountOpeningAgentComponent {
     this.send(`Here are the requested account-opening details: ${details}`);
   }
 
+  openSection(sectionId: string): void {
+    if (this.busy() || this.pendingInterruptId()) return;
+    const allowed = new Set(['PROFILE', 'ACCOUNT_DETAILS', 'RISK_PROFILE', 'FEATURES', 'SUMMARY', 'DASHBOARD']);
+    if (!allowed.has(sectionId)) {
+      this.error.set('That application section is not supported.');
+      return;
+    }
+    this.send('POC_FORM_SUBMISSION:' + JSON.stringify({
+      formId: 'DASHBOARD_NAVIGATION',
+      section: sectionId,
+    }));
+  }
+
+  returnToDashboard(): void {
+    this.openSection('DASHBOARD');
+  }
+
   sendJourneyMessage(): void {
     const message = this.conversationText().trim();
     if (!message || this.busy() || !this.uiState()) return;
