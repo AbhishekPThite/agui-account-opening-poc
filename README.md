@@ -288,16 +288,20 @@ python -m unittest test_requirements_engine.py -v
 After the mandatory risk-assessment step, the graph renders a feature form selected deterministically from the account product type.
 
 **Brokerage**
-- Trading access: `STANDARD` or `ACTIVE`.
-- Cash management: `YES` or `NO`.
-- Dividend reinvestment: `YES` or `NO`.
+- Online Access & E-Delivery Preferences.
+- Cash Sweep Options.
+- Margin Information.
+- Tax Information (including tax-lot accounting method, such as FIFO or LIFO).
+- Proxy Election.
+
+These are kept as lightweight, generic capture fields. The detailed option sets and conditional rules will be aligned with the product/API contract rather than embedded in LangGraph node logic.
 
 **Credit Facility**
 - Requested credit limit: positive numeric amount.
 - Proposed collateral: `SECURITIES`, `CASH` or `OTHER`.
 - Facility purpose: `LIQUIDITY`, `INVESTMENT` or `OTHER`.
 
-The product feature schemas live in `backend/requirements_engine.py`. The backend selects the schema from the already-selected product, validates all required fields, checks enumerated values and rejects a non-positive credit limit. The graph cannot prepare the application review until the selected product's feature form is completed. The submitted values are checkpointed, shown in the review summary and sent to the Draft Application API under `productFeatures`. The local mock draft response echoes this object.
+The product feature schemas live in `backend/requirements_engine.py`. The backend selects a lightweight schema from the already-selected product. Brokerage preferences are captured generically without adding product-policy logic to the graph; the credit facility form retains basic required-field and positive-amount validation. The graph cannot prepare the application review until the selected product's feature form is completed. The submitted values are checkpointed, shown in the review summary and sent to the Draft Application API under `productFeatures`. The local mock draft response echoes this object.
 
 These are illustrative POC fields and enumerations, not approved product terms, trading permissions, credit underwriting criteria or collateral acceptance rules. In particular, selecting a feature does not grant trading access or approve a credit facility. Align the schema and validation with the actual product catalog, jurisdiction, risk controls and Java OpenAPI contract before production.
 
@@ -320,7 +324,7 @@ After owner and optional beneficiary capture, the graph presents a mandatory ris
 
 - Existing investment objectives, experience level and risk tolerance are prepopulated from the Client Experience API profile. The root `riskProfile` is used as a fallback for risk tolerance.
 - The RM confirms or corrects the prepopulated values and supplies any missing required information.
-- The POC captures investment objectives, investment experience, risk tolerance, investment time horizon, liquidity needs and investment product knowledge.
+- The POC captures investment objectives, time horizon, liquidity needs and risk comfort level.
 - The backend validates that every field is present and that enumerated answers use supported values. Investment objectives are normalized to an uppercase list.
 - The graph persists the submitted values in checkpointed workflow state and includes them under `riskAssessment` in the Draft Application API request and application review summary.
 - The graph cannot proceed to application review until a complete risk assessment has been submitted.
