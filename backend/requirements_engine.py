@@ -65,12 +65,11 @@ def build_registration_requirements(registration_type: str) -> dict[str, Any]:
 
 PRODUCT_FEATURES: dict[str, tuple[dict[str, Any], ...]] = {
     "BROKERAGE": (
-        {"name": "onlineAccess", "label": "Online access preference", "type": "text", "required": False, "placeholder": "Capture online access preference"},
-        {"name": "eDelivery", "label": "E-Delivery preference", "type": "text", "required": False, "placeholder": "Capture electronic delivery preference"},
-        {"name": "cashSweepOption", "label": "Cash sweep option", "type": "text", "required": False, "placeholder": "Capture selected cash sweep option"},
-        {"name": "marginInformation", "label": "Margin information", "type": "text", "required": False, "placeholder": "Capture margin-related details"},
-        {"name": "taxLotMethod", "label": "Tax lot accounting method", "type": "text", "required": False, "placeholder": "e.g. FIFO or LIFO"},
-        {"name": "proxyElection", "label": "Proxy election", "type": "text", "required": False, "placeholder": "Capture proxy voting preference"},
+        {"name": "cashSweepVehicle", "label": "Sweep vehicle", "type": "select", "required": False, "options": ["BDP"], "defaultValue": "BDP"},
+        {"name": "linkedBankingAccount", "label": "Link existing banking account", "type": "text", "required": False, "placeholder": "Select or enter an existing banking account"},
+        {"name": "optionsTradingElection", "label": "Opt in to Options?", "type": "select", "required": False, "options": ["YES", "NO"], "defaultValue": "NO"},
+        {"name": "mutualFundsTaxLotMethod", "label": "Mutual Funds", "type": "select", "required": False, "options": ["FIRST_IN_FIRST_OUT", "LAST_IN_FIRST_OUT"], "defaultValue": "FIRST_IN_FIRST_OUT"},
+        {"name": "otherSecuritiesTaxLotMethod", "label": "All Other Securities", "type": "select", "required": False, "options": ["FIRST_IN_FIRST_OUT", "LAST_IN_FIRST_OUT"], "defaultValue": "FIRST_IN_FIRST_OUT"},
     ),
     "CREDIT_FACILITY": (
         {"name": "requestedCreditLimit", "label": "Requested credit limit (account currency)", "type": "number", "required": True, "placeholder": "Enter amount in the account currency"},
