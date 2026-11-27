@@ -39,7 +39,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Wealth Account Opening AG-UI POC",
-    version="0.4.0",
+    version="0.5.0",
     lifespan=lifespan,
 )
 
