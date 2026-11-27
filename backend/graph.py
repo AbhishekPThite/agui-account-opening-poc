@@ -855,14 +855,17 @@ def build_graph(
     workflow.add_edge("prepare_risk_assessment", "publish_journey_status")
     workflow.add_edge("prepare_product_features", "publish_journey_status")
     workflow.add_edge("prepare_ui", "publish_journey_status")
+    def route_after_status(state: AccountOpeningState) -> str:
+        return "await_approval" if state.get("ui", {}).get("widgetId") == "APPLICATION_SUMMARY" else "finish"
+
     workflow.add_conditional_edges(
-        "publish_journey_status", route_after_requirements,
-        {"wait_for_input": END, "await_approval": "await_approval"},
+        "publish_journey_status", route_after_status,
+        {"finish": END, "await_approval": "await_approval"},
     )
     workflow.add_conditional_edges(
         "await_approval", route_after_approval,
         {"create_draft": "create_draft", "revalidate": "retrieve_client", "finish": END},
     )
-    workflow.add_edge("create_draft", END)
+    workflow.add_edge("create_draft", "publish_journey_status")
     saver = checkpointer if checkpointer_override is None else checkpointer_override
     return workflow.compile(checkpointer=saver)
