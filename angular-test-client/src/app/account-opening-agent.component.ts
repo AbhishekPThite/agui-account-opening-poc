@@ -65,6 +65,10 @@ export class AccountOpeningAgentComponent {
       this.send(`POC_FORM_SUBMISSION:${JSON.stringify({ ...payload, formId: 'ACCOUNT_SETUP' })}`);
       return;
     }
+    if (this.uiState()?.widgetId === 'JOINT_OWNER_FORM') {
+      this.send(`POC_FORM_SUBMISSION:${JSON.stringify({ ...payload, formId: 'JOINT_OWNER_DETAILS' })}`);
+      return;
+    }
     if (this.uiState()?.widgetId === 'PROFILE_DATA_CAPTURE') {
       this.send(`POC_FORM_SUBMISSION:${JSON.stringify({ ...payload, formId: 'PROFILE_DATA_CAPTURE' })}`);
       return;
