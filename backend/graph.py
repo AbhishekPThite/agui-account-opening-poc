@@ -359,8 +359,8 @@ def build_journey_status(state: AccountOpeningState) -> dict[str, Any]:
     current_stage = current_by_widget.get(widget_id)
 
     stages = [
-        {"id": "PROFILE", "label": "Client Profile"},
         {"id": "ACCOUNT_DETAILS", "label": "Account Details"},
+        {"id": "PROFILE", "label": "Client Profile"},
         {"id": "RISK_PROFILE", "label": "Risk Profile"},
         {"id": "FEATURES", "label": "Features"},
         {"id": "SUMMARY", "label": "Summary"},
