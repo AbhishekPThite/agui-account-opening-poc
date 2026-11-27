@@ -70,7 +70,7 @@ PRODUCT_FEATURES: dict[str, tuple[dict[str, Any], ...]] = {
         {"name": "dividendReinvestment", "label": "Dividend reinvestment", "type": "select", "required": True, "options": ["YES", "NO"]},
     ),
     "CREDIT_FACILITY": (
-        {"name": "requestedCreditLimit", "label": "Requested credit limit", "type": "number", "required": True, "placeholder": "Enter requested amount"},
+        {"name": "requestedCreditLimit", "label": "Requested credit limit (account currency)", "type": "number", "required": True, "placeholder": "Enter amount in the account currency"},
         {"name": "collateralType", "label": "Proposed collateral", "type": "select", "required": True, "options": ["SECURITIES", "CASH", "OTHER"]},
         {"name": "facilityPurpose", "label": "Facility purpose", "type": "select", "required": True, "options": ["LIQUIDITY", "INVESTMENT", "OTHER"]},
     ),
