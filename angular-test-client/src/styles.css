@@ -27,3 +27,15 @@
   .stage-label { margin:0 0 4px; }
   .stage-status { justify-self:start; }
 }
+
+.journey-progress { height:6px; overflow:hidden; border-radius:999px; background:#e8edf3; margin:-7px 0 20px; }
+.journey-progress span { display:block; height:100%; border-radius:inherit; background:#16845b; transition:width .2s ease; }
+.journey-legend { display:flex; flex-wrap:wrap; gap:8px 16px; margin-top:18px; color:#617083; font-size:11px; }
+.journey-legend span { display:inline-flex; align-items:center; gap:6px; }
+.legend-dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:#cbd5df; }
+.legend-dot.completed { background:#16845b; }
+.legend-dot.active { background:#2563a6; }
+.legend-dot.attention { background:#c27b22; }
+.legend-dot.pending { background:#cbd5df; }
+.status-pending.stage-marker { border-color:#cbd5df; color:#94a3b8; }
+.status-pending.stage-status { background:#f1f5f9; color:#64748b; }
