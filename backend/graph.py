@@ -441,6 +441,8 @@ def prepare_application_dashboard(state: AccountOpeningState) -> dict[str, Any]:
 def open_dashboard_section(state: AccountOpeningState) -> dict[str, Any]:
     """Open a requested section without advancing or completing other sections."""
     section = str(state.get("requested_section", "")).upper()
+    if section == "DASHBOARD":
+        return prepare_application_dashboard(state)
     if section == "PROFILE":
         return prepare_profile_assessment(state)
     if section == "ACCOUNT_DETAILS":
@@ -449,7 +451,20 @@ def open_dashboard_section(state: AccountOpeningState) -> dict[str, Any]:
         joint_missing = joint_required and not (
             state.get("joint_owner_name") and state.get("joint_owner_tax_residency")
         )
-        return prepare_ui(state) if state.get("account_setup_complete") and joint_missing else prepare_account_setup(state)
+        if state.get("account_setup_complete") and joint_missing:
+            return {
+                "ui": {
+                    "mode": "FORM",
+                    "widgetId": "JOINT_OWNER_FORM",
+                    "title": "Joint owner information",
+                    "description": "Complete the required joint-owner details for this registration.",
+                    "fields": [
+                        {"name": "jointOwnerName", "label": "Joint owner full name", "type": "text", "required": True, "defaultValue": state.get("joint_owner_name", "")},
+                        {"name": "jointOwnerTaxResidency", "label": "Joint owner tax residency", "type": "text", "required": True, "defaultValue": state.get("joint_owner_tax_residency", "")},
+                    ],
+                }
+            }
+        return prepare_account_setup(state)
     if section == "RISK_PROFILE":
         return prepare_risk_assessment(state)
     if section == "FEATURES":
