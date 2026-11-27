@@ -84,7 +84,8 @@ export class AccountOpeningAgentComponent {
 
   private resumeInterrupt(interruptId: string, payload: unknown): void {
     if (this.busy()) return;
-    this.pendingInterruptId.set(null);
+    // Keep the ID until RUN_FINISHED confirms whether the graph re-interrupted.
+    // This also lets the user retry if the HTTP request fails.
     this.send('', [{
       interruptId,
       status: 'resolved',
