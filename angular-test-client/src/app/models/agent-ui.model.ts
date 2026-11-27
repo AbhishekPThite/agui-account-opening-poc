@@ -28,7 +28,8 @@ export interface AgentUI {
   description?: string;
   fields?: AgentUIField[];
   data?: Record<string, unknown>;
-  approvalRequired?: boolean;\n  journeyStatus?: JourneyStatus;
+  approvalRequired?: boolean;
+  journeyStatus?: JourneyStatus;
 }
 
 export interface AgentWidgetInstance {
