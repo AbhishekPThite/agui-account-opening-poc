@@ -17,51 +17,74 @@
 
     <p class="error" *ngIf="error()">{{error()}}</p>
 
-    <section class="journey-tracker panel" *ngIf="uiState()?.journeyStatus as journey">
-        <div class="journey-heading">
+    <section class="panel dashboard-panel" *ngIf="uiState()?.widgetId === 'APPLICATION_DASHBOARD'">
+        <div class="dashboard-heading">
             <div>
-                <div class="eyebrow">ACCOUNT OPENING JOURNEY</div>
-                <h2>Application progress</h2>
+                <div class="eyebrow">ACCOUNT OPENING WORKSPACE</div>
+                <h2>{{uiState()?.title}}</h2>
+                <p>{{uiState()?.description}}</p>
             </div>
-            <div class="journey-count">{{journey.completedCount}} of {{journey.totalCount}} completed</div>
+            <div class="dashboard-client" *ngIf="uiState()?.data as data">
+                <strong>{{data['clientName'] || 'Client'}}</strong>
+                <span>Client ID: {{data['clientId'] || '—'}}</span>
+                <span>{{data['productType'] || 'Product not selected'}} · {{data['registrationType'] || 'Registration not selected'}}</span>
+            </div>
         </div>
-        <div
-            class="journey-progress"
-            role="progressbar"
-            aria-label="Account opening journey completion"
-            [attr.aria-valuemin]="0"
-            [attr.aria-valuemax]="journey.totalCount"
-            [attr.aria-valuenow]="journey.completedCount">
-            <span [style.width.%]="journey.totalCount ? (journey.completedCount / journey.totalCount) * 100 : 0"></span>
-        </div>
-        <div class="journey-track" role="list" aria-label="Account opening progress">
-            <div class="journey-stage" role="listitem" *ngFor="let stage of journey.stages; let last = last">
-                <div class="stage-topline">
-                    <span
-                        class="stage-marker"
-                        [ngClass]="'status-' + stage.status.toLowerCase().replace('_', '-')"
-                        [attr.aria-current]="stage.id === journey.currentStage ? 'step' : null">
-                        <span *ngIf="stage.status === 'COMPLETED'">✓</span>
-                        <span *ngIf="stage.status !== 'COMPLETED'">{{stage.id === journey.currentStage ? '●' : '○'}}</span>
-                    </span>
-                    <span class="stage-connector" *ngIf="!last"></span>
+
+        <ng-container *ngIf="uiState()?.journeyStatus as journey">
+            <div class="dashboard-completion">
+                <div>
+                    <strong>{{journey.completedCount}} of {{journey.totalCount}} sections completed</strong>
+                    <span>Complete the required sections before final review.</span>
                 </div>
-                <div class="stage-label">{{stage.label}}</div>
-                <span class="stage-status" [ngClass]="'status-' + stage.status.toLowerCase().replace('_', '-')">
-                    {{stage.status.replace('_', ' ')}}
-                </span>
+                <strong class="completion-percent">{{journey.totalCount ? Math.round(journey.completedCount / journey.totalCount * 100) : 0}}%</strong>
             </div>
-        </div>
-        <div class="journey-legend" aria-label="Journey status legend">
-            <span><i class="legend-dot completed"></i>Completed</span>
-            <span><i class="legend-dot active"></i>In progress</span>
-            <span><i class="legend-dot attention"></i>Action / confirmation required</span>
-            <span><i class="legend-dot pending"></i>Pending</span>
-        </div>
+            <div class="journey-progress" role="progressbar"
+                 aria-label="Application completion"
+                 [attr.aria-valuemin]="0"
+                 [attr.aria-valuemax]="journey.totalCount"
+                 [attr.aria-valuenow]="journey.completedCount">
+                <span [style.width.%]="journey.totalCount ? (journey.completedCount / journey.totalCount) * 100 : 0"></span>
+            </div>
+
+            <div class="section-grid" role="list" aria-label="Application sections">
+                <button type="button" class="section-card" role="listitem"
+                        *ngFor="let section of journey.sections || journey.stages"
+                        [ngClass]="'section-' + section.status.toLowerCase().replace('_', '-')"
+                        [disabled]="busy()"
+                        (click)="openSection(section.id)">
+                    <div class="section-card-top">
+                        <span class="section-icon">
+                            <span *ngIf="section.status === 'COMPLETED'">✓</span>
+                            <span *ngIf="section.status !== 'COMPLETED'">○</span>
+                        </span>
+                        <span class="section-status"
+                              [ngClass]="'status-' + section.status.toLowerCase().replace('_', '-')">
+                            {{section.status.replace('_', ' ')}}
+                        </span>
+                    </div>
+                    <strong>{{section.label}}</strong>
+                    <span class="section-description">{{section.description || 'Review and update this section.'}}</span>
+                    <span class="section-action">
+                        {{section.status === 'COMPLETED' ? 'Review section' : 'Review / complete'}}
+                        <span aria-hidden="true">→</span>
+                    </span>
+                </button>
+            </div>
+            <div class="journey-legend" aria-label="Section status legend">
+                <span><i class="legend-dot completed"></i>Completed</span>
+                <span><i class="legend-dot attention"></i>Action required</span>
+                <span><i class="legend-dot active"></i>Confirmation required / In progress</span>
+                <span><i class="legend-dot pending"></i>Pending</span>
+            </div>
+        </ng-container>
     </section>
 
-
-    <section class="panel" *ngIf="uiState()">
+    <section class="panel section-workspace" *ngIf="uiState() && uiState()?.widgetId !== 'APPLICATION_DASHBOARD'">
+        <button type="button" class="back-dashboard" *ngIf="uiState()?.mode !== 'COMPLETE' && uiState()?.mode !== 'ALERT'"
+                (click)="returnToDashboard()" [disabled]="busy() || !!pendingInterruptId()">
+            <span aria-hidden="true">←</span> Back to application dashboard
+        </button>
         <app-widget-renderer [ui]="uiState()" (submit)="submitWidget($event)"></app-widget-renderer>
     </section>
 
