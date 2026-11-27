@@ -788,7 +788,7 @@ def build_application_review_sections(state: AccountOpeningState) -> list[dict[s
 
     profile_fields: list[dict[str, Any]] = [
         field("Client name", profile.get("displayName")),
-        field("Client ID", profile.get("clientId"), True),
+        field("Client ID", profile.get("clientId") or state.get("client_id"), True),
         field("KYC status", profile.get("kycStatus")),
     ]
     for group in assessment.get("sections", []):
@@ -822,7 +822,7 @@ def build_application_review_sections(state: AccountOpeningState) -> list[dict[s
     feature_schema = build_product_feature_requirements(product_type) if product_type in {"BROKERAGE", "CREDIT_FACILITY"} else {"fields": []}
     feature_fields = [
         field(definition["label"],
-              features.get(definition["name"], definition.get("defaultValue")),
+              (features.get(definition["name"]) if features.get(definition["name"]) not in (None, "") else definition.get("defaultValue")),
               bool(definition.get("required")))
         for definition in feature_schema["fields"]
     ]
