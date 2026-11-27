@@ -4,6 +4,7 @@ export type AgentWidgetId =
   | 'PROFILE_DATA_CAPTURE'
   | 'BENEFICIARY_CAPTURE'
   | 'PRODUCT_FEATURES_FORM'
+  | 'APPLICATION_DASHBOARD'
   | 'APPLICATION_SUMMARY'
   | 'DRAFT_CONFIRMATION'
   | 'INFORMATION_ALERT';
@@ -48,6 +49,14 @@ export interface JourneyStage {
   id: string;
   label: string;
   status: JourneyStageStatus;
+  description?: string;
+}
+
+export interface JourneySection {
+  id: string;
+  label: string;
+  status: JourneyStageStatus;
+  description: string;
 }
 
 export interface JourneyStatus {
@@ -56,4 +65,5 @@ export interface JourneyStatus {
   completedCount: number;
   totalCount: number;
   overallStatus: 'COMPLETED' | 'IN_PROGRESS';
+  sections?: JourneySection[];
 }
