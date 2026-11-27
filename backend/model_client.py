@@ -173,3 +173,55 @@ async def extract_account_request(user_text: str) -> dict[str, Any]:
         extracted["margin_option"] = extracted.get("margin_option", "").upper()
 
     return extracted
+
+async def extract_risk_assessment(user_text: str) -> dict[str, Any]:
+    """Extract only client-stated risk questionnaire answers for form prefill."""
+    extracted = await extract_structured_data(
+        user_text,
+        workflow_context=(
+            "A wealth account-opening risk questionnaire. Capture the client's own "
+            "stated investment objectives, investment time horizon, liquidity needs "
+            "and risk tolerance. This is data capture, not a suitability assessment."
+        ),
+        field_schema={
+            "investmentObjectives": (
+                "Client-stated investment objectives as a concise comma-separated list. "
+                "Do not recommend or infer objectives."
+            ),
+            "investmentTimeHorizon": (
+                "Allowed enum: UNDER_3_YEARS, 3_TO_5_YEARS, 5_TO_10_YEARS, OVER_10_YEARS. "
+                "Return only when the client's stated duration clearly maps to one option."
+            ),
+            "liquidityNeeds": (
+                "Allowed enum: LOW, MEDIUM, HIGH. Return only when the client's stated "
+                "liquidity need clearly maps to one option; do not infer it from objectives."
+            ),
+            "riskTolerance": (
+                "Allowed enum: CONSERVATIVE, MODERATE, AGGRESSIVE. Return only when "
+                "the client explicitly describes their risk comfort in terms that clearly map."
+            ),
+        },
+        extraction_rules=(
+            "Only capture the client's own statements in the current message. "
+            "Never score risk, assess suitability, recommend investments, infer a "
+            "risk category from age/income/net worth, or fill gaps using assumptions. "
+            "If ambiguous, return an empty string for that field. For corrections, "
+            "return only the field(s) changed in this message."
+        ),
+    )
+    allowed = {
+        "investmentTimeHorizon": {"UNDER_3_YEARS", "3_TO_5_YEARS", "5_TO_10_YEARS", "OVER_10_YEARS"},
+        "liquidityNeeds": {"LOW", "MEDIUM", "HIGH"},
+        "riskTolerance": {"CONSERVATIVE", "MODERATE", "AGGRESSIVE"},
+    }
+    for key, values in allowed.items():
+        value = extracted.get(key, "").strip().upper().replace(" ", "_")
+        if value not in values:
+            if value:
+                logger.warning("Ignoring unsupported conversational risk value for %s: %s", key, value)
+            extracted[key] = ""
+        else:
+            extracted[key] = value
+    extracted["investmentObjectives"] = extracted.get("investmentObjectives", "").strip()
+    return extracted
+
