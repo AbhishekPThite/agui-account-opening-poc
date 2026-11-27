@@ -188,7 +188,7 @@ export class AccountSummaryComponent {
 
   entries(): Array<{ label: string; value: string }> {
     return Object.entries(this.ui.data ?? {})
-      .filter(([key]) => key !== 'reviewSections')
+      .filter(([key, value]) => key !== 'reviewSections' && (value === null || typeof value !== 'object'))
       .map(([key, value]) => ({
         label: key.replace(/([A-Z])/g, ' $1').replace(/^./, c => c.toUpperCase()),
         value: value === null || value === undefined ? '—' : String(value)
