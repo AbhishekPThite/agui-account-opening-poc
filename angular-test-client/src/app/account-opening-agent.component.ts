@@ -89,6 +89,13 @@ export class AccountOpeningAgentComponent {
     this.send(`Here are the requested account-opening details: ${details}`);
   }
 
+  completionPercent(): number {
+    const journey = this.uiState()?.journeyStatus;
+    return journey?.totalCount
+      ? Math.round((journey.completedCount / journey.totalCount) * 100)
+      : 0;
+  }
+
   openSection(sectionId: string): void {
     if (this.busy() || this.pendingInterruptId()) return;
     const allowed = new Set(['PROFILE', 'ACCOUNT_DETAILS', 'RISK_PROFILE', 'FEATURES', 'SUMMARY', 'DASHBOARD']);
