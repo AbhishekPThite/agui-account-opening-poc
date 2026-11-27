@@ -102,6 +102,7 @@ class JavaExperienceApi:
                     "accountType": application["accountType"],
                     "ownership": application["ownership"],
                     "baseCurrency": application["baseCurrency"],
+                    "jointOwner": application.get("jointOwner"),
                 }
             return dict(MOCK_DRAFTS_BY_KEY[idempotency_key])
 
