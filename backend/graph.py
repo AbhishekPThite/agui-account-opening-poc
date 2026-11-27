@@ -10,7 +10,14 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 from checkpointer import checkpointer
 from langgraph.types import interrupt
-from model_client import (\n    extract_account_request, extract_risk_assessment, extract_product_features,\n    extract_active_form_fields, answer_journey_question, model,\n)
+from model_client import (
+    extract_account_request,
+    extract_risk_assessment,
+    extract_product_features,
+    extract_active_form_fields,
+    answer_journey_question,
+    model,
+)
 from requirements_engine import build_registration_requirements, build_product_feature_requirements
 
 
