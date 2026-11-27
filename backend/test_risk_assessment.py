@@ -8,7 +8,7 @@ from graph import understand_request, prepare_risk_assessment
 
 
 class RiskAssessmentTests(unittest.TestCase):
-    def test_existing_profile_values_are_prefilled_and_new_fields_are_required(self):
+    def test_client_profile_values_do_not_prefill_risk_assessment(self):
         result = prepare_risk_assessment({
             "client_id": "C12345",
             "client_profile": {
@@ -21,13 +21,36 @@ class RiskAssessmentTests(unittest.TestCase):
         })
         self.assertEqual(result["ui"]["widgetId"], "RISK_ASSESSMENT_FORM")
         fields = {field["name"]: field for field in result["ui"]["fields"]}
-        self.assertEqual(fields["investmentObjectives"]["defaultValue"], "GROWTH, INCOME")
-        self.assertEqual(fields["riskTolerance"]["defaultValue"], "MODERATE")
+        self.assertEqual(fields["investmentObjectives"]["defaultValue"], "")
+        self.assertEqual(fields["riskTolerance"]["defaultValue"], "")
+        self.assertEqual(fields["investmentTimeHorizon"]["defaultValue"], "")
+        self.assertEqual(fields["liquidityNeeds"]["defaultValue"], "")
         self.assertNotIn("experienceLevel", fields)
         self.assertNotIn("productKnowledge", fields)
         for name in ("investmentTimeHorizon", "liquidityNeeds"):
             self.assertTrue(fields[name]["required"])
             self.assertEqual(fields[name]["defaultValue"], "")
+
+    def test_explicitly_provided_risk_answers_are_prefilled(self):
+        result = prepare_risk_assessment({
+            "client_profile": {
+                "investmentProfile": {
+                    "investmentObjectives": ["INCOME"],
+                    "riskTolerance": "CONSERVATIVE",
+                },
+            },
+            "risk_assessment": {
+                "investmentObjectives": ["GROWTH", "INCOME"],
+                "riskTolerance": "MODERATE",
+                "investmentTimeHorizon": "5_TO_10_YEARS",
+                "liquidityNeeds": "MEDIUM",
+            },
+        })
+        fields = {field["name"]: field for field in result["ui"]["fields"]}
+        self.assertEqual(fields["investmentObjectives"]["defaultValue"], "GROWTH, INCOME")
+        self.assertEqual(fields["riskTolerance"]["defaultValue"], "MODERATE")
+        self.assertEqual(fields["investmentTimeHorizon"]["defaultValue"], "5_TO_10_YEARS")
+        self.assertEqual(fields["liquidityNeeds"]["defaultValue"], "MEDIUM")
 
     def test_backend_rejects_incomplete_risk_assessment(self):
         payload = {"formId": "RISK_ASSESSMENT", "investmentObjectives": "GROWTH"}
