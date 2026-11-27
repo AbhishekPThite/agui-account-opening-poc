@@ -459,3 +459,35 @@ Manual check:
 5. Submit with a required field blank and verify the backend still rejects it; complete all fields and continue.
 6. Try ambiguous language such as `I may need access to the money sometime`. Verify the model leaves the unclear field blank rather than inventing an answer.
 
+## Conversational product feature prefill (Milestone 9C)
+
+While the product-specific feature form is active, the RM can describe the client's stated preferences in natural language. The extractor receives the selected product's schema from `requirements_engine.py`, so it only considers fields and enum options valid for that product.
+
+**Brokerage examples**
+- “Opt in to options.”
+- “Use last in first out for mutual funds.”
+- “Link the existing banking account ending 1234.”
+
+**Credit Facility example**
+- “Request 250,000 against securities for liquidity.”
+
+Only non-empty supported values are merged into the checkpointed `product_features` state. Follow-up messages preserve all fields not mentioned. Unsupported select values and non-positive or non-numeric amounts are ignored; the RM can correct them in the form. The next AG-UI state snapshot refreshes the form defaults.
+
+Conversational input does **not** submit or complete the form. The RM must review the values and select Continue. The backend continues to validate required Credit Facility fields, positive requested limit and supported select options on structured form submission. Brokerage fields remain optional as defined by the current POC schema.
+
+**Control boundary:** the model captures stated preferences only. It does not approve options permissions, determine collateral acceptability, approve a credit limit, perform underwriting, assess eligibility or make suitability decisions. The feature schema and Java API payload are assumed POC contracts and must be aligned with the approved product catalog and actual Java OpenAPI contract before production.
+
+Run focused backend tests from the backend directory:
+
+```bash
+python -m unittest test_product_features.py -v
+```
+
+Manual checks:
+1. Start a Brokerage journey and reach Product Features. Enter: `Opt in to options and use last in first out for mutual funds.`
+2. Select **Prefill product features**. Verify only those stated fields change and defaults/previous values remain.
+3. Send a follow-up changing only the other-securities tax-lot method. Verify the options election and mutual-funds method remain unchanged.
+4. Start a Credit Facility journey. Enter: `Request 250000 against securities for liquidity.` Verify all three fields are prefilled but the form is not submitted.
+5. Try an unsupported collateral value or a negative amount. Verify it is not accepted as a valid prefill; structured submission must still be rejected if required values are missing or invalid.
+6. Complete the form explicitly and verify the application summary and draft request include `productFeatures`.
+
