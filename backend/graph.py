@@ -70,15 +70,32 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
     elif model is not None and text:
         extracted = await extract_account_request(text)
 
-    client_id = extracted.get("client_id") or extract_value(
+    client_id = extracted.get("client_id") or extracted.get("clientId") or extract_value(
         r"\bclient\s+([A-Z0-9-]+)", text, state.get("client_id", "C12345")
     )
-    account_type = extracted.get("account_type") or (
-        "BROKERAGE" if "brokerage" in text.lower() else state.get("account_type", "BROKERAGE")
-    )
-    ownership = extracted.get("ownership") or (
-        "JOINT" if "joint" in text.lower() else state.get("ownership", "INDIVIDUAL")
-    )
+
+    # Product and registration are controlled domain values. Do not trust free-form
+    # LLM account_type output such as "joint brokerage account" as a select value.
+    raw_product = str(extracted.get("productType") or extracted.get("account_type") or "").upper()
+    if raw_product in {"BROKERAGE", "CREDIT_FACILITY"}:
+        product_type = raw_product
+    elif "credit" in text.lower() and "facility" in text.lower():
+        product_type = "CREDIT_FACILITY"
+    elif "brokerage" in text.lower():
+        product_type = "BROKERAGE"
+    else:
+        product_type = state.get("product_type", "BROKERAGE")
+
+    allowed_registrations = {"INDIVIDUAL", "INDIVIDUAL_TOD", "JOINT", "JOINT_TOD"}
+    raw_registration = str(extracted.get("registrationType") or extracted.get("ownership") or "").upper()
+    if raw_registration in allowed_registrations:
+        ownership = raw_registration
+    elif re.search(r"\bjoint\b", text, re.IGNORECASE):
+        ownership = "JOINT_TOD" if re.search(r"\bTOD\b|transfer on death", text, re.IGNORECASE) else "JOINT"
+    elif re.search(r"\bindividual\b", text, re.IGNORECASE):
+        ownership = "INDIVIDUAL_TOD" if re.search(r"\bTOD\b|transfer on death", text, re.IGNORECASE) else "INDIVIDUAL"
+    else:
+        ownership = state.get("ownership", "INDIVIDUAL")
     currency = extracted.get("base_currency") or extract_value(
         r"\b(USD|EUR|GBP|SGD|HKD|AED)\b", text, state.get("base_currency", "USD")
     )
@@ -91,13 +108,15 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
         text, state.get("joint_owner_tax_residency", "")
     )
     setup_submitted = form_submission and extracted.get("formId") == "ACCOUNT_SETUP"
+    selected_product = str(extracted.get("productType") or product_type).upper()
+    selected_registration = str(extracted.get("registrationType") or ownership).upper()
     return {
         "client_id": str(extracted.get("clientId") or client_id),
-        "account_type": str(extracted.get("productType") or account_type).upper(),
-        "product_type": str(extracted.get("productType") or state.get("product_type", account_type)).upper(),
-        "ownership": str(extracted.get("registrationType") or ownership).upper(),
+        "account_type": selected_product,
+        "product_type": selected_product,
+        "ownership": selected_registration,
         "base_currency": str(extracted.get("baseCurrency") or currency).upper(),
-        "account_nickname": str(extracted.get("accountNickname") or state.get("account_nickname", "")),
+        "account_nickname": str(extracted.get("accountNickname") or state.get("account_nickname") or "Brokerage 1"),
         "margin_option": str(extracted.get("marginOption") or state.get("margin_option", "NONE")).upper(),
         "account_setup_complete": setup_submitted or state.get("account_setup_complete", False),
         "joint_owner_name": str(extracted.get("jointOwnerName") or owner or state.get("joint_owner_name", "")),
@@ -109,12 +128,12 @@ def prepare_account_setup(state: AccountOpeningState) -> dict[str, Any]:
     ui = {
         "mode": "FORM",
         "widgetId": "ACCOUNT_SETUP_FORM",
-        "title": "Set up brokerage account",
+        "title": "Set up your account",
         "description": "Confirm the product, registration and account preferences to begin.",
         "fields": [
-            {"name": "productType", "label": "Product type", "type": "select", "required": True, "options": ["BROKERAGE", "INVESTMENT"], "defaultValue": state.get("product_type", "BROKERAGE")},
+            {"name": "productType", "label": "Product type", "type": "select", "required": True, "options": ["BROKERAGE", "CREDIT_FACILITY"], "defaultValue": state.get("product_type", "BROKERAGE")},
             {"name": "registrationType", "label": "Registration type", "type": "select", "required": True, "options": ["INDIVIDUAL", "INDIVIDUAL_TOD", "JOINT", "JOINT_TOD"], "defaultValue": state.get("ownership", "INDIVIDUAL")},
-            {"name": "accountNickname", "label": "Account nickname", "type": "text", "required": True, "placeholder": "Account nickname", "defaultValue": state.get("account_nickname", "Alex Morgan - Brokerage")},
+            {"name": "accountNickname", "label": "Account nickname", "type": "text", "required": True, "placeholder": "Account nickname", "defaultValue": state.get("account_nickname") or "Brokerage 1"},
             {"name": "marginOption", "label": "Margin option", "type": "select", "required": True, "options": ["NONE", "MARGIN"], "defaultValue": state.get("margin_option", "NONE")},
             {"name": "baseCurrency", "label": "Base currency", "type": "select", "required": True, "options": ["USD", "SGD", "EUR", "GBP", "HKD", "AED"], "defaultValue": state.get("base_currency", "USD")}
         ],
@@ -255,7 +274,7 @@ async def apply_review_edit(state: AccountOpeningState, decision: dict[str, Any]
         }
 
     # Restrict values to supported POC values. Enterprise APIs remain authoritative.
-    if "ownership" in updates and updates["ownership"] not in {"JOINT", "INDIVIDUAL"}:
+    if "ownership" in updates and updates["ownership"] not in {"JOINT", "JOINT_TOD", "INDIVIDUAL", "INDIVIDUAL_TOD"}:
         updates.pop("ownership")
     if "account_type" in updates and updates["account_type"] not in {"BROKERAGE", "CASH", "MARGIN"}:
         updates.pop("account_type")
@@ -340,7 +359,7 @@ async def create_draft(
         "ownership": state["ownership"],
         "baseCurrency": state["base_currency"],
     }
-    if state.get("ownership") == "JOINT":
+    if state.get("ownership") in {"JOINT", "JOINT_TOD"}:
         application_request["jointOwner"] = {
             "name": state.get("joint_owner_name", ""),
             "taxResidency": state.get("joint_owner_tax_residency", ""),
