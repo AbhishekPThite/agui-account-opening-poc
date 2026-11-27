@@ -414,7 +414,8 @@ def prepare_product_features(state: AccountOpeningState) -> dict[str, Any]:
     fields = []
     for definition in schema["fields"]:
         field = dict(definition)
-        field["defaultValue"] = str(existing.get(field["name"], ""))
+        default_value = existing.get(field["name"], field.get("defaultValue", ""))
+        field["defaultValue"] = str(default_value)
         fields.append(field)
     title = "Brokerage features" if product_type == "BROKERAGE" else "Credit facility details"
     description = (
