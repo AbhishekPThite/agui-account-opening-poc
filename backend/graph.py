@@ -89,7 +89,7 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
     )
     ownership = (
         raw_registration if raw_registration in allowed_registrations
-        else state.get("ownership", "")
+        else state.get("ownership", "INDIVIDUAL")
     )
     owner = extracted.get("joint_owner_name") or extract_value(
         r"(?:joint owner|co-owner)(?: name)?\s*(?:is|:|to)\s*([A-Za-z][A-Za-z .'-]+?)(?:,|;|$)",
@@ -123,7 +123,7 @@ def prepare_account_setup(state: AccountOpeningState) -> dict[str, Any]:
         "description": "Confirm the product, registration and account preferences to begin.",
         "fields": [
             {"name": "productType", "label": "Product type", "type": "select", "required": True, "options": ["BROKERAGE", "CREDIT_FACILITY"], "defaultValue": state.get("product_type", "")},
-            {"name": "registrationType", "label": "Registration type", "type": "select", "required": True, "options": ["INDIVIDUAL", "INDIVIDUAL_TOD", "JOINT", "JOINT_TOD"], "defaultValue": state.get("ownership", "")},
+            {"name": "registrationType", "label": "Registration type", "type": "select", "required": True, "options": ["INDIVIDUAL", "INDIVIDUAL_TOD", "JOINT", "JOINT_TOD"], "defaultValue": state.get("ownership", "INDIVIDUAL")},
             {"name": "accountNickname", "label": "Account nickname", "type": "text", "required": True, "placeholder": "Account nickname", "defaultValue": state.get("account_nickname") or "Brokerage 1"},
             {"name": "marginOption", "label": "Margin option", "type": "select", "required": True, "options": ["NONE", "MARGIN"], "defaultValue": state.get("margin_option", "NONE")},
         ],
