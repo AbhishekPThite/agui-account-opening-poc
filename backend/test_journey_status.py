@@ -1,6 +1,6 @@
 import unittest
 
-from graph import build_journey_status, prepare_application_dashboard, open_dashboard_section
+from graph import (build_journey_status, build_application_review_sections, prepare_application_dashboard, open_dashboard_section)
 
 
 class JourneyStatusTests(unittest.TestCase):
@@ -116,6 +116,47 @@ class JourneyStatusTests(unittest.TestCase):
         self.assertEqual(result["ui"]["widgetId"], "APPLICATION_DASHBOARD")
         self.assertFalse(result["ui"].get("approvalRequired", False))
         self.assertIn("not ready for final review", result["messages"][0].content.lower())
+
+    def test_final_review_groups_all_sections_for_accordion_display(self):
+        sections = build_application_review_sections({
+            "client_id": "C12345",
+            "client_profile": {
+                "clientId": "C12345",
+                "displayName": "Alex Morgan",
+                "kycStatus": "VALID",
+                "investmentProfile": {
+                    "investmentObjectives": ["GROWTH"],
+                    "riskTolerance": "MODERATE",
+                },
+            },
+            "profile_assessment": {
+                "sections": [{
+                    "name": "Personal details",
+                    "fields": [
+                        {"name": "firstName", "label": "First name", "value": "Alex", "required": True, "missing": False},
+                        {"name": "email", "label": "Email", "value": "Not provided", "required": True, "missing": True},
+                    ],
+                }],
+            },
+            "product_type": "BROKERAGE",
+            "account_type": "BROKERAGE",
+            "account_nickname": "Brokerage 1",
+            "ownership": "INDIVIDUAL",
+            "risk_assessment": {
+                "investmentTimeHorizon": "5_TO_10_YEARS",
+                "liquidityNeeds": "MEDIUM",
+            },
+            "beneficiary_data": {},
+            "product_features": {},
+        })
+        by_id = {section["id"]: section for section in sections}
+        self.assertEqual(
+            set(by_id),
+            {"ACCOUNT_DETAILS", "PROFILE", "RISK_PROFILE", "FEATURES"},
+        )
+        self.assertEqual(by_id["PROFILE"]["status"], "ACTION_REQUIRED")
+        self.assertTrue(any(field["missing"] for field in by_id["PROFILE"]["fields"]))
+        self.assertEqual(by_id["FEATURES"]["status"], "COMPLETED")
 
     def test_draft_confirmation_completes_summary_stage(self):
         result = build_journey_status({
