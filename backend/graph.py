@@ -348,13 +348,14 @@ def build_journey_status(state: AccountOpeningState) -> dict[str, Any]:
         if not str(state.get("joint_owner_tax_residency", "")).strip():
             account_missing.append("jointOwnerTaxResidency")
 
+    # Risk answers are sourced only from explicit user selections or chat extraction.
+    # Do not silently seed the assessment from the retrieved client profile.
     risk = state.get("risk_assessment", {})
-    investment = (state.get("client_profile", {}).get("investmentProfile") or {})
     risk_values = {
-        "investmentObjectives": risk.get("investmentObjectives", investment.get("investmentObjectives")),
+        "investmentObjectives": risk.get("investmentObjectives"),
         "investmentTimeHorizon": risk.get("investmentTimeHorizon"),
         "liquidityNeeds": risk.get("liquidityNeeds"),
-        "riskTolerance": risk.get("riskTolerance", investment.get("riskTolerance")),
+        "riskTolerance": risk.get("riskTolerance"),
     }
     risk_missing = [key for key, value in risk_values.items() if value is None or value == "" or value == []]
 
@@ -673,15 +674,11 @@ def determine_requirements(state: AccountOpeningState) -> dict[str, Any]:
 
 def prepare_risk_assessment(state: AccountOpeningState) -> dict[str, Any]:
     """Collect and confirm mandatory risk-profile inputs; do not score suitability."""
-    profile = state.get("client_profile", {})
-    investment = profile.get("investmentProfile") or {}
     current = state.get("risk_assessment", {})
-    objectives = current.get("investmentObjectives")
-    if objectives is None:
-        objectives = investment.get("investmentObjectives", [])
+    objectives = current.get("investmentObjectives", "")
     if isinstance(objectives, list):
         objectives = ", ".join(str(value) for value in objectives)
-    risk_tolerance = current.get("riskTolerance") or investment.get("riskTolerance") or profile.get("riskProfile", "")
+    risk_tolerance = current.get("riskTolerance", "")
     fields = [
         {"name": "investmentObjectives", "label": "Investment objectives (comma-separated)", "type": "text", "required": True, "defaultValue": str(objectives or ""), "placeholder": "e.g. GROWTH, INCOME"},
         {"name": "riskTolerance", "label": "Risk comfort level", "type": "select", "required": True, "options": ["CONSERVATIVE", "MODERATE", "AGGRESSIVE"], "defaultValue": risk_tolerance},
@@ -752,7 +749,6 @@ def build_application_review_sections(state: AccountOpeningState) -> list[dict[s
     ownership = str(state.get("ownership", "INDIVIDUAL")).upper()
     product_type = str(state.get("product_type") or state.get("account_type") or "")
     risk = state.get("risk_assessment", {})
-    investment = profile.get("investmentProfile") or {}
     features = state.get("product_features", {})
     sections: list[dict[str, Any]] = []
 
@@ -804,10 +800,10 @@ def build_application_review_sections(state: AccountOpeningState) -> list[dict[s
                      "fields": profile_fields})
 
     risk_values = {
-        "investmentObjectives": risk.get("investmentObjectives", investment.get("investmentObjectives")),
+        "investmentObjectives": risk.get("investmentObjectives"),
         "investmentTimeHorizon": risk.get("investmentTimeHorizon"),
         "liquidityNeeds": risk.get("liquidityNeeds"),
-        "riskTolerance": risk.get("riskTolerance", investment.get("riskTolerance")),
+        "riskTolerance": risk.get("riskTolerance"),
     }
     risk_fields = [
         field("Investment objectives", risk_values["investmentObjectives"], True),
