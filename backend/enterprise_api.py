@@ -93,6 +93,7 @@ class JavaExperienceApi:
         idempotency_key: str,
     ) -> dict[str, Any]:
         """Create a draft; repeated keys return the same mock/API result."""
+        logger.info("Creating account draft through Java Experience API adapter (mode=%s).", self.mode)
         if self.mode == "mock":
             if idempotency_key not in MOCK_DRAFTS_BY_KEY:
                 MOCK_DRAFTS_BY_KEY[idempotency_key] = {
@@ -116,6 +117,7 @@ class JavaExperienceApi:
         )
         response.raise_for_status()
         payload = response.json()
+        logger.info("Draft API returned application ID %s.", payload.get("applicationId", "<missing>"))
 
         required = ("applicationId", "status", "clientId")
         missing = [field for field in required if field not in payload]
