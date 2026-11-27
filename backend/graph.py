@@ -275,7 +275,7 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
         "product_features": {**state.get("product_features", {}), **submitted_features},
         "product_features_completed": product_features_submission or state.get("product_features_completed", False),
         "joint_owner_name": str(extracted.get("jointOwnerName") or owner or state.get("joint_owner_name", "")),
-        "joint_owner_tax_residency": str(extracted.get("jointOwnerTaxResidency") or extracted.get("jointOwnerTaxResidency") or tax or state.get("joint_owner_tax_residency", "")),
+        "joint_owner_tax_residency": str(extracted.get("jointOwnerTaxResidency") or tax or state.get("joint_owner_tax_residency", "")),
         "messages": [AIMessage(content=assistant_answer)] if assistant_answer else [],
         "conversation_only": bool(assistant_answer),
     }
