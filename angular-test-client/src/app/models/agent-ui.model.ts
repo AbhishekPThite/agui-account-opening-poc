@@ -28,10 +28,31 @@ export interface AgentUI {
   description?: string;
   fields?: AgentUIField[];
   data?: Record<string, unknown>;
-  approvalRequired?: boolean;
+  approvalRequired?: boolean;\n  journeyStatus?: JourneyStatus;
 }
 
 export interface AgentWidgetInstance {
   ui: AgentUI;
   submit?: import('@angular/core').EventEmitter<Record<string, unknown>>;
+}
+
+export type JourneyStageStatus =
+  | 'COMPLETED'
+  | 'ACTION_REQUIRED'
+  | 'CONFIRMATION_REQUIRED'
+  | 'IN_PROGRESS'
+  | 'PENDING';
+
+export interface JourneyStage {
+  id: string;
+  label: string;
+  status: JourneyStageStatus;
+}
+
+export interface JourneyStatus {
+  stages: JourneyStage[];
+  currentStage: string | null;
+  completedCount: number;
+  totalCount: number;
+  overallStatus: 'COMPLETED' | 'IN_PROGRESS';
 }
