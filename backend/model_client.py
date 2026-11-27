@@ -225,3 +225,67 @@ async def extract_risk_assessment(user_text: str) -> dict[str, Any]:
     extracted["investmentObjectives"] = extracted.get("investmentObjectives", "").strip()
     return extracted
 
+async def extract_product_features(
+    user_text: str,
+    *,
+    product_type: str,
+    field_definitions: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Extract only explicitly stated preferences from the selected product schema."""
+    schema: dict[str, str] = {}
+    for field in field_definitions:
+        name = str(field["name"])
+        description = (
+            f'{field.get("label", name)}. Field type: {field.get("type", "text")}. '
+            f'Required on form submission: {bool(field.get("required", False))}. '
+        )
+        if field.get("type") == "select":
+            description += "Allowed values: " + ", ".join(str(v) for v in field.get("options", [])) + "."
+        elif field.get("type") == "number":
+            description += "Return a positive numeric amount only when explicitly stated."
+        else:
+            description += "Return only the specific account or preference text explicitly stated."
+        schema[name] = description
+
+    extracted = await extract_structured_data(
+        user_text,
+        workflow_context=(
+            f"Account-opening product feature capture for product {product_type}. "
+            "Extract the RM's explicitly stated client preferences for this product only."
+        ),
+        field_schema=schema,
+        extraction_rules=(
+            "Do not infer eligibility, permissions, collateral acceptability, credit approval, "
+            "pricing, underwriting, suitability or product-policy outcomes. Never choose a "
+            "default merely because it appears in the form. Return only values the user "
+            "explicitly states or unambiguously requests. Leave all other fields empty."
+        ),
+    )
+
+    accepted: dict[str, Any] = {}
+    for field in field_definitions:
+        name = str(field["name"])
+        raw = extracted.get(name, "").strip()
+        if not raw:
+            continue
+        if field.get("type") == "select":
+            normalized = raw.upper().replace(" ", "_")
+            allowed = {str(value).upper() for value in field.get("options", [])}
+            if normalized not in allowed:
+                logger.warning("Ignoring unsupported conversational product value for %s: %s", name, raw)
+                continue
+            accepted[name] = normalized
+        elif field.get("type") == "number":
+            try:
+                amount = float(raw.replace(",", "").replace("$", "").strip())
+            except ValueError:
+                logger.warning("Ignoring non-numeric conversational product value for %s", name)
+                continue
+            if amount <= 0:
+                logger.warning("Ignoring non-positive conversational product value for %s", name)
+                continue
+            accepted[name] = str(amount)
+        else:
+            accepted[name] = raw
+    return accepted
+
