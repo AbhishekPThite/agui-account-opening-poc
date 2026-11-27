@@ -87,6 +87,11 @@ export class DynamicFormComponent {
         <span>{{ item.label }}</span>
         <strong>{{ item.value }}</strong>
       </div>
+      <div class="approval-actions" *ngIf="ui.approvalRequired">
+        <button class="approve" type="button" (click)="approve()">Confirm and create draft</button>
+        <button class="reject" type="button" (click)="reject()">Reject / stop</button>
+        <p class="approval-note">A draft is created only after you confirm. Rejecting creates no draft.</p>
+      </div>
     </section>
   `,
   styles: [`
@@ -96,10 +101,24 @@ export class DynamicFormComponent {
     .summary-row { display: flex; justify-content: space-between; gap: 16px; padding: 9px 0; border-bottom: 1px solid #e2e8f0; }
     .summary-row span { color: #64748b; }
     .summary-row strong { text-align: right; }
+    .approval-actions { display: flex; flex-wrap: wrap; gap: 10px; padding-top: 8px; }
+    .approval-actions button { padding: 10px 14px; border: 0; border-radius: 8px; cursor: pointer; font: inherit; font-weight: 600; }
+    .approve { background: #166534; color: white; }
+    .reject { background: #e2e8f0; color: #1e293b; }
+    .approval-note { flex-basis: 100%; color: #64748b; font-size: 12px; }
   `]
 })
 export class AccountSummaryComponent {
   @Input({ required: true }) ui!: AgentUI;
+  @Output() submit = new EventEmitter<Record<string, unknown>>();
+
+  approve(): void {
+    this.submit.emit({ __approvalAction: 'APPROVE' });
+  }
+
+  reject(): void {
+    this.submit.emit({ __approvalAction: 'REJECT' });
+  }
 
   entries(): Array<{ label: string; value: string }> {
     return Object.entries(this.ui.data ?? {}).map(([key, value]) => ({
