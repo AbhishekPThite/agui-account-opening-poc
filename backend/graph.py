@@ -72,28 +72,25 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
         r"\bclient\s+([A-Z0-9-]+)", text, state.get("client_id", "C12345")
     )
 
-    # Product and registration are controlled domain values. Do not trust free-form
-    # LLM account_type output such as "joint brokerage account" as a select value.
-    raw_product = str(extracted.get("productType") or extracted.get("account_type") or "").upper()
-    if raw_product in {"BROKERAGE", "CREDIT_FACILITY"}:
-        product_type = raw_product
-    elif "credit" in text.lower() and "facility" in text.lower():
-        product_type = "CREDIT_FACILITY"
-    elif "brokerage" in text.lower():
-        product_type = "BROKERAGE"
-    else:
-        product_type = state.get("product_type", "BROKERAGE")
-
+    # The LLM interprets natural-language intent. Python only validates the
+    # returned domain values; structured UI submissions are already explicit.
+    allowed_products = {"BROKERAGE", "CREDIT_FACILITY"}
     allowed_registrations = {"INDIVIDUAL", "INDIVIDUAL_TOD", "JOINT", "JOINT_TOD"}
-    raw_registration = str(extracted.get("registrationType") or extracted.get("ownership") or "").upper()
-    if raw_registration in allowed_registrations:
-        ownership = raw_registration
-    elif re.search(r"\bjoint\b", text, re.IGNORECASE):
-        ownership = "JOINT_TOD" if re.search(r"\bTOD\b|transfer on death", text, re.IGNORECASE) else "JOINT"
-    elif re.search(r"\bindividual\b", text, re.IGNORECASE):
-        ownership = "INDIVIDUAL_TOD" if re.search(r"\bTOD\b|transfer on death", text, re.IGNORECASE) else "INDIVIDUAL"
-    else:
-        ownership = state.get("ownership", "INDIVIDUAL")
+    raw_product = str(
+        extracted.get("productType") or extracted.get("account_type") or ""
+    ).strip().upper()
+    raw_registration = str(
+        extracted.get("registrationType") or extracted.get("ownership") or ""
+    ).strip().upper()
+
+    product_type = (
+        raw_product if raw_product in allowed_products
+        else state.get("product_type", "")
+    )
+    ownership = (
+        raw_registration if raw_registration in allowed_registrations
+        else state.get("ownership", "")
+    )
     owner = extracted.get("joint_owner_name") or extract_value(
         r"(?:joint owner|co-owner)(?: name)?\s*(?:is|:|to)\s*([A-Za-z][A-Za-z .'-]+?)(?:,|;|$)",
         text, state.get("joint_owner_name", "")
@@ -125,8 +122,8 @@ def prepare_account_setup(state: AccountOpeningState) -> dict[str, Any]:
         "title": "Set up your account",
         "description": "Confirm the product, registration and account preferences to begin.",
         "fields": [
-            {"name": "productType", "label": "Product type", "type": "select", "required": True, "options": ["BROKERAGE", "CREDIT_FACILITY"], "defaultValue": state.get("product_type", "BROKERAGE")},
-            {"name": "registrationType", "label": "Registration type", "type": "select", "required": True, "options": ["INDIVIDUAL", "INDIVIDUAL_TOD", "JOINT", "JOINT_TOD"], "defaultValue": state.get("ownership", "INDIVIDUAL")},
+            {"name": "productType", "label": "Product type", "type": "select", "required": True, "options": ["BROKERAGE", "CREDIT_FACILITY"], "defaultValue": state.get("product_type", "")},
+            {"name": "registrationType", "label": "Registration type", "type": "select", "required": True, "options": ["INDIVIDUAL", "INDIVIDUAL_TOD", "JOINT", "JOINT_TOD"], "defaultValue": state.get("ownership", "")},
             {"name": "accountNickname", "label": "Account nickname", "type": "text", "required": True, "placeholder": "Account nickname", "defaultValue": state.get("account_nickname") or "Brokerage 1"},
             {"name": "marginOption", "label": "Margin option", "type": "select", "required": True, "options": ["NONE", "MARGIN"], "defaultValue": state.get("margin_option", "NONE")},
         ],
