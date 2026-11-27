@@ -4,6 +4,9 @@ import logging
 import os
 from typing import Any
 
+from dotenv import load_dotenv
+load_dotenv()
+
 from langgraph.checkpoint.memory import MemorySaver
 
 logger = logging.getLogger(__name__)
