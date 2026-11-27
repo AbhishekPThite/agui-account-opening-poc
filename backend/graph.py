@@ -458,6 +458,22 @@ def prepare_application_dashboard(state: AccountOpeningState) -> dict[str, Any]:
             "messages": [AIMessage(content="Your application workspace is ready. Select any section to review or complete it.")]}
 
 
+def prepare_joint_owner_capture(state: AccountOpeningState) -> dict[str, Any]:
+    return {
+        "ui": {
+            "mode": "FORM",
+            "widgetId": "JOINT_OWNER_FORM",
+            "title": "Joint owner information",
+            "description": "Complete the required joint-owner details for this joint registration.",
+            "fields": [
+                {"name": "jointOwnerName", "label": "Joint owner full name", "type": "text", "required": True, "defaultValue": state.get("joint_owner_name", "")},
+                {"name": "jointOwnerTaxResidency", "label": "Joint owner tax residency", "type": "text", "required": True, "defaultValue": state.get("joint_owner_tax_residency", "")},
+            ],
+        },
+        "messages": [AIMessage(content="The account setup is saved. Please provide the joint owner's full name and tax residency to continue.")],
+    }
+
+
 def open_dashboard_section(state: AccountOpeningState) -> dict[str, Any]:
     """Open a requested section without advancing or completing other sections."""
     section = str(state.get("requested_section", "")).upper()
@@ -472,18 +488,7 @@ def open_dashboard_section(state: AccountOpeningState) -> dict[str, Any]:
             state.get("joint_owner_name") and state.get("joint_owner_tax_residency")
         )
         if state.get("account_setup_complete") and joint_missing:
-            return {
-                "ui": {
-                    "mode": "FORM",
-                    "widgetId": "JOINT_OWNER_FORM",
-                    "title": "Joint owner information",
-                    "description": "Complete the required joint-owner details for this registration.",
-                    "fields": [
-                        {"name": "jointOwnerName", "label": "Joint owner full name", "type": "text", "required": True, "defaultValue": state.get("joint_owner_name", "")},
-                        {"name": "jointOwnerTaxResidency", "label": "Joint owner tax residency", "type": "text", "required": True, "defaultValue": state.get("joint_owner_tax_residency", "")},
-                    ],
-                }
-            }
+            return prepare_joint_owner_capture(state)
         return prepare_account_setup(state)
     if section == "RISK_PROFILE":
         return prepare_risk_assessment(state)
@@ -538,6 +543,17 @@ def route_after_setup(state: AccountOpeningState) -> str:
         return "open_section"
     if state.get("profile_capture_requested"):
         return "capture_profile"
+    # A joint registration must collect its required co-owner details
+    # immediately after account setup, before returning to the dashboard.
+    if (
+        state.get("last_form_action") == "ACCOUNT_SETUP"
+        and str(state.get("ownership", "")).upper() in {"JOINT", "JOINT_TOD"}
+        and not (
+            state.get("joint_owner_name")
+            and state.get("joint_owner_tax_residency")
+        )
+    ):
+        return "joint_owner"
     if not state.get("client_profile") or state.get("profile_data_submitted"):
         return "retrieve_client"
     return "dashboard"
@@ -1092,6 +1108,7 @@ def build_graph(
     workflow = StateGraph(AccountOpeningState)
     workflow.add_node("understand_request", understand_request)
     workflow.add_node("prepare_account_setup", prepare_account_setup)
+    workflow.add_node("prepare_joint_owner_capture", prepare_joint_owner_capture)
     workflow.add_node("prepare_application_dashboard", prepare_application_dashboard)
     workflow.add_node("open_dashboard_section", open_dashboard_section)
     workflow.add_node("publish_journey_status", publish_journey_status)
@@ -1119,9 +1136,10 @@ def build_graph(
         {"show_setup": "prepare_account_setup", "retrieve_client": "retrieve_client",
          "dashboard": "prepare_application_dashboard", "open_section": "open_dashboard_section",
          "continue_journey": "prepare_application_dashboard", "capture_profile": "prepare_profile_capture",
-         "stay": END},
+         "joint_owner": "prepare_joint_owner_capture", "stay": END},
     )
     workflow.add_edge("prepare_account_setup", "publish_journey_status")
+    workflow.add_edge("prepare_joint_owner_capture", "publish_journey_status")
     workflow.add_edge("retrieve_client", "assess_client_profile")
     workflow.add_edge("assess_client_profile", "prepare_application_dashboard")
     workflow.add_edge("prepare_application_dashboard", END)
