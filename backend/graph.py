@@ -7,7 +7,7 @@ from typing import Annotated, Any, TypedDict
 from langchain_core.messages import AnyMessage, HumanMessage, AIMessage
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
-from langgraph.checkpoint.memory import MemorySaver
+from checkpointer import checkpointer
 from langgraph.types import interrupt
 from model_client import extract_account_request, model
 
@@ -341,7 +341,7 @@ def build_graph():
         {"create_draft": "create_draft", "revalidate": "retrieve_client", "finish": END},
     )
     workflow.add_edge("create_draft", END)
-    return workflow.compile(checkpointer=MemorySaver())
+    return workflow.compile(checkpointer=checkpointer)
 
 
 graph = build_graph()
