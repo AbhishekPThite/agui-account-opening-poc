@@ -24,6 +24,7 @@ export class AccountOpeningAgentComponent {
   uiState = signal<AgentUI | null>(null);
   busy = signal(false);
   error = signal('');
+  pendingInterruptId = signal<string | null>(null);
 
   constructor(private readonly agui: AguiClientService) {}
 
@@ -33,12 +34,19 @@ export class AccountOpeningAgentComponent {
     this.events.set([]);
     this.assistantText.set([]);
     this.uiState.set(null);
+    this.pendingInterruptId.set(null);
     this.threadId = crypto.randomUUID();
 
     this.send(this.prompt());
   }
 
   submitWidget(payload: Record<string, unknown>): void {
+    const action = payload['__approvalAction'];
+    if (action === 'APPROVE' || action === 'REJECT') {
+      this.resumeApproval(action);
+      return;
+    }
+
     const details = Object.entries(payload)
       .map(([key, value]) => `${key.replace(/([A-Z])/g, ' $1').toLowerCase()}: ${String(value)}`)
       .join(', ');
@@ -46,7 +54,30 @@ export class AccountOpeningAgentComponent {
     this.send(`Here are the requested account-opening details: ${details}`);
   }
 
-  private send(text: string): void {
+  private resumeApproval(action: 'APPROVE' | 'REJECT'): void {
+    const interruptId = this.pendingInterruptId();
+    if (!interruptId) {
+      this.error.set('No pending approval was found. Start the account-opening journey again.');
+      return;
+    }
+    if (this.busy()) return;
+
+    const payload = action === 'APPROVE'
+      ? { action: 'APPROVE', approved: true }
+      : { action: 'REJECT', approved: false };
+
+    this.pendingInterruptId.set(null);
+    this.send('', [{
+      interruptId,
+      status: 'resolved',
+      payload,
+    }]);
+  }
+
+  private send(
+    text: string,
+    resume?: Array<{ interruptId: string; status: 'resolved'; payload: unknown }>
+  ): void {
     if (this.busy()) return;
 
     this.busy.set(true);
@@ -55,11 +86,12 @@ export class AccountOpeningAgentComponent {
     this.agui.run({
       threadId: this.threadId,
       runId: crypto.randomUUID(),
-      messages: [{
+      messages: text ? [{
         id: crypto.randomUUID(),
         role: 'user',
         content: text,
-      }],
+      }] : [],
+      ...(resume ? { resume } : {}),
     }).subscribe({
       next: event => this.handleEvent(event),
       error: (err: Error) => {
@@ -83,6 +115,20 @@ export class AccountOpeningAgentComponent {
       if (ui && typeof ui === 'object' && 'widgetId' in ui && 'mode' in ui && 'title' in ui) {
         console.log('[AG-UI UI STATE]', ui);
         this.uiState.set(ui as AgentUI);
+      }
+    }
+
+    if (event.type === 'RUN_FINISHED') {
+      const outcome = event['outcome'] as
+        { type?: string; interrupts?: Array<{ id?: string }> } | undefined;
+      if (outcome?.type === 'interrupt') {
+        const interruptId = outcome.interrupts?.[0]?.id;
+        if (interruptId) {
+          this.pendingInterruptId.set(interruptId);
+          console.log('[AG-UI INTERRUPT]', interruptId);
+        } else {
+          this.error.set('The agent paused, but no interrupt ID was returned.');
+        }
       }
     }
 
