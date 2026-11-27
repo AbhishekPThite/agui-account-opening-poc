@@ -101,8 +101,11 @@ class JavaExperienceApi:
                     "status": "DRAFT",
                     "clientId": application["clientId"],
                     "accountType": application["accountType"],
+                    "productType": application.get("productType"),
+                    "registrationType": application.get("registrationType", application["ownership"]),
+                    "accountNickname": application.get("accountNickname"),
+                    "marginOption": application.get("marginOption", "NONE"),
                     "ownership": application["ownership"],
-                    "baseCurrency": application["baseCurrency"],
                     "jointOwner": application.get("jointOwner"),
                 }
             return dict(MOCK_DRAFTS_BY_KEY[idempotency_key])
