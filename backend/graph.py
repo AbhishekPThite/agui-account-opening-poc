@@ -104,8 +104,20 @@ def prepare_ui(state: AccountOpeningState) -> dict[str, Any]:
             "title": "Joint owner information",
             "description": "Complete the required information before creating the account draft.",
             "fields": [
-                {"name": "jointOwnerName", "label": "Joint owner full name", "type": "text", "required": True},
-                {"name": "jointOwnerTaxResidency", "label": "Joint owner tax residency", "type": "text", "required": True},
+                {
+                    "name": "jointOwnerName",
+                    "label": "Joint owner full name",
+                    "type": "text",
+                    "required": True,
+                    "placeholder": "e.g. Jordan Morgan",
+                },
+                {
+                    "name": "jointOwnerTaxResidency",
+                    "label": "Joint owner tax residency",
+                    "type": "text",
+                    "required": True,
+                    "placeholder": "e.g. Singapore",
+                },
             ],
         }
         message = (
@@ -113,8 +125,23 @@ def prepare_ui(state: AccountOpeningState) -> dict[str, Any]:
             "The mock KYC service reports VALID. Please provide the joint owner's name and tax residency."
         )
     else:
-        ui = {"mode": "SUMMARY", "widgetId": "APPLICATION_SUMMARY", "title": "Application draft ready", "fields": []}
-        message = "All required POC fields are present. I can create the account-opening draft."
+        profile = state.get("client_profile", {})
+        ui = {
+            "mode": "SUMMARY",
+            "widgetId": "APPLICATION_SUMMARY",
+            "title": "Application details",
+            "description": "Review the extracted account-opening information.",
+            "fields": [],
+            "data": {
+                "clientId": state.get("client_id", ""),
+                "clientName": profile.get("displayName", ""),
+                "accountType": state.get("account_type", ""),
+                "ownership": state.get("ownership", ""),
+                "baseCurrency": state.get("base_currency", ""),
+                "kycStatus": profile.get("kycStatus", "UNKNOWN"),
+            },
+        }
+        message = "All required POC fields are present. Preparing the account-opening draft."
     return {"ui": ui, "messages": [AIMessage(content=message)]}
 
 
@@ -134,7 +161,18 @@ def create_mock_draft(state: AccountOpeningState) -> dict[str, Any]:
     }
     return {
         "application": draft,
-        "ui": {"mode": "COMPLETE", "widgetId": "DRAFT_CONFIRMATION", "title": "Draft created", "fields": []},
+        "ui": {
+            "mode": "COMPLETE",
+            "widgetId": "DRAFT_CONFIRMATION",
+            "title": "Draft created",
+            "description": "A mock account-opening draft was created. No real account has been opened.",
+            "fields": [],
+            "data": {
+                "applicationId": draft["applicationId"],
+                "status": draft["status"],
+                "clientId": draft["clientId"],
+            },
+        },
         "messages": [AIMessage(content=f"Account-opening draft {draft['applicationId']} was created successfully. No account has been submitted or opened.")],
     }
 
