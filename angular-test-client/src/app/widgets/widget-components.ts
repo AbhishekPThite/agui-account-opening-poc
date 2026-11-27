@@ -35,7 +35,7 @@ import { AgentUI, AgentUIField } from '../models/agent-ui.model';
             [type]="field.type === 'number' ? 'number' : 'text'"
             [placeholder]="field.placeholder ?? ''"
             [required]="field.required ?? false"
-            [ngModel]="values[field.name]"
+            [ngModel]="values[field.name] ?? field.defaultValue ?? ''"
             (ngModelChange)="values[field.name] = $event">
         </ng-template>
       </div>
