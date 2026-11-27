@@ -84,6 +84,25 @@
         <p class="hint">Review the populated fields and select Continue to submit the account setup.</p>
     </section>
 
+    <section class="panel conversation-panel" *ngIf="uiState()?.widgetId === 'RISK_ASSESSMENT_FORM'">
+        <div class="eyebrow">CONVERSATION · RISK ASSESSMENT</div>
+        <h2>Describe the client's stated preferences</h2>
+        <p>Capture only what the client has told you. The assistant can prefill objectives, time horizon, liquidity needs and risk comfort; it will not score risk or determine suitability.</p>
+        <label for="risk-prefill">Client-stated preferences</label>
+        <textarea
+            id="risk-prefill"
+            rows="2"
+            [ngModel]="conversationText()"
+            (ngModelChange)="conversationText.set($event)"
+            (keydown.control.enter)="sendRiskPrefill()"
+            (keydown.meta.enter)="sendRiskPrefill()"
+            placeholder="e.g. I am investing for 7 years, need medium liquidity and am comfortable with moderate risk. My objectives are growth and income."></textarea>
+        <button class="primary" (click)="sendRiskPrefill()" [disabled]="busy() || !conversationText().trim()">
+            {{busy() ? 'Prefilling…' : 'Prefill risk assessment'}}
+        </button>
+        <p class="hint">Review the updated fields and complete any blanks in the form. Select Continue to submit; chat does not complete the assessment.</p>
+    </section>
+
     <section class="panel conversation-panel" *ngIf="pendingInterruptId()">
         <div class="eyebrow">CONVERSATION · APPLICATION REVIEW</div>
         <h2>Would you like to change anything?</h2>
