@@ -416,7 +416,7 @@ The reusable account-request extractor returns only supported account setup fiel
 
 LangGraph validates enum values and merges only extracted values into the checkpointed state. Unmentioned values remain unchanged. The next UI state snapshot carries those values as form defaults, and Angular refreshes the visible form from that backend snapshot. The RM must still review the fields and select **Continue**; a chat message never submits the form or marks account setup complete.
 
-This increment uses the configured LLM through the existing `extract_account_request` path. If `LLM_ENABLED=false`, the conversational extraction returns no values; the standard form remains available for manual entry. The feature is limited to Account Setup in 9A. Conversational Risk Assessment and Product Features are future increments.
+This increment uses the configured LLM through the account-request extraction path. The unified conversational journey assistant now routes messages to the active step's extractor and supports step-specific questions and form prefill.
 
 Run the focused backend tests from the backend directory:
 
