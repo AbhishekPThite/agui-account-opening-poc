@@ -51,6 +51,49 @@ class UnifiedJourneyAssistantTests(unittest.TestCase):
         self.assertEqual(result["joint_owner_tax_residency"], "Singapore")
         self.assertFalse(result["conversation_only"])
 
+    def test_initial_request_prefills_risk_and_brokerage_features(self):
+        state = {
+            "messages": [HumanMessage(content=(
+                "Open brokerage account for client C12345. I am investing for about seven years, "
+                "need medium liquidity, and am comfortable with moderate risk. My objectives are "
+                "growth and income. Opt in to options, keep the sweep vehicle as BDP, and use FIFO "
+                "for tax lots."
+            ))],
+            "ui": {},
+        }
+        with patch("graph.model", object()), patch(
+            "graph.extract_account_request",
+            new=AsyncMock(return_value={"client_id": "C12345", "account_type": "BROKERAGE"}),
+        ), patch(
+            "graph.extract_risk_assessment",
+            new=AsyncMock(return_value={
+                "investmentObjectives": "GROWTH, INCOME",
+                "investmentTimeHorizon": "5_TO_10_YEARS",
+                "liquidityNeeds": "MEDIUM",
+                "riskTolerance": "MODERATE",
+            }),
+        ), patch(
+            "graph.extract_product_features",
+            new=AsyncMock(return_value={
+                "cashSweepVehicle": "BDP",
+                "optionsTradingElection": "YES",
+                "mutualFundsTaxLotMethod": "FIRST_IN_FIRST_OUT",
+                "otherSecuritiesTaxLotMethod": "FIRST_IN_FIRST_OUT",
+            }),
+        ):
+            result = asyncio.run(understand_request(state))
+
+        self.assertEqual(result["risk_assessment"]["investmentTimeHorizon"], "5_TO_10_YEARS")
+        self.assertEqual(result["risk_assessment"]["liquidityNeeds"], "MEDIUM")
+        self.assertEqual(result["risk_assessment"]["riskTolerance"], "MODERATE")
+        self.assertEqual(result["risk_assessment"]["investmentObjectives"], "GROWTH, INCOME")
+        self.assertEqual(result["product_features"]["optionsTradingElection"], "YES")
+        self.assertEqual(result["product_features"]["cashSweepVehicle"], "BDP")
+        self.assertEqual(result["product_features"]["mutualFundsTaxLotMethod"], "FIRST_IN_FIRST_OUT")
+        self.assertEqual(result["product_features"]["otherSecuritiesTaxLotMethod"], "FIRST_IN_FIRST_OUT")
+        self.assertFalse(result["risk_assessment_completed"])
+        self.assertFalse(result["product_features_completed"])
+
     def test_product_question_does_not_mutate_values_or_complete_step(self):
         state = {
             "messages": [HumanMessage(content="Does this approve the credit facility?")],
