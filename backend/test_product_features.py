@@ -8,13 +8,19 @@ from requirements_engine import build_product_feature_requirements
 
 
 class ProductFeatureTests(unittest.TestCase):
-    def test_brokerage_feature_schema_is_product_specific(self):
+    def test_brokerage_feature_schema_uses_screenshot_fields_and_defaults(self):
         schema = build_product_feature_requirements("BROKERAGE")
         self.assertEqual(schema["productType"], "BROKERAGE")
+        fields = {field["name"]: field for field in schema["fields"]}
         self.assertEqual(
-            [field["name"] for field in schema["fields"]],
-            ["onlineAccess", "eDelivery", "cashSweepOption", "marginInformation", "taxLotMethod", "proxyElection"],
+            list(fields),
+            ["cashSweepVehicle", "linkedBankingAccount", "optionsTradingElection", "mutualFundsTaxLotMethod", "otherSecuritiesTaxLotMethod"],
         )
+        self.assertEqual(fields["cashSweepVehicle"]["defaultValue"], "BDP")
+        self.assertEqual(fields["optionsTradingElection"]["defaultValue"], "NO")
+        self.assertEqual(fields["mutualFundsTaxLotMethod"]["defaultValue"], "FIRST_IN_FIRST_OUT")
+        self.assertEqual(fields["otherSecuritiesTaxLotMethod"]["defaultValue"], "FIRST_IN_FIRST_OUT")
+        self.assertNotIn("defaultValue", fields["linkedBankingAccount"])
 
     def test_credit_facility_feature_schema_is_product_specific(self):
         schema = build_product_feature_requirements("CREDIT_FACILITY")
@@ -42,12 +48,10 @@ class ProductFeatureTests(unittest.TestCase):
     def test_brokerage_submission_is_normalized(self):
         payload = {
             "formId": "PRODUCT_FEATURES",
-            "onlineAccess": "Enabled",
-            "eDelivery": "Paperless",
-            "cashSweepOption": "Option A",
-            "marginInformation": "As selected during account setup",
-            "taxLotMethod": "FIFO",
-            "proxyElection": "Client directed",
+            "cashSweepVehicle": "BDP",
+            "optionsTradingElection": "NO",
+            "mutualFundsTaxLotMethod": "FIRST_IN_FIRST_OUT",
+            "otherSecuritiesTaxLotMethod": "FIRST_IN_FIRST_OUT",
         }
         state = {
             "product_type": "BROKERAGE",
@@ -55,12 +59,10 @@ class ProductFeatureTests(unittest.TestCase):
         }
         result = asyncio.run(understand_request(state))
         self.assertEqual(result["product_features"], {
-            "onlineAccess": "Enabled",
-            "eDelivery": "Paperless",
-            "cashSweepOption": "Option A",
-            "marginInformation": "As selected during account setup",
-            "taxLotMethod": "FIFO",
-            "proxyElection": "Client directed",
+            "cashSweepVehicle": "BDP",
+            "optionsTradingElection": "NO",
+            "mutualFundsTaxLotMethod": "FIRST_IN_FIRST_OUT",
+            "otherSecuritiesTaxLotMethod": "FIRST_IN_FIRST_OUT",
         })
         self.assertTrue(result["product_features_completed"])
 
