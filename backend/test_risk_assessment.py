@@ -14,7 +14,6 @@ class RiskAssessmentTests(unittest.TestCase):
                 "riskProfile": "MODERATE",
                 "investmentProfile": {
                     "investmentObjectives": ["GROWTH", "INCOME"],
-                    "experienceLevel": "EXPERIENCED",
                     "riskTolerance": "MODERATE",
                 },
             },
@@ -22,9 +21,10 @@ class RiskAssessmentTests(unittest.TestCase):
         self.assertEqual(result["ui"]["widgetId"], "RISK_ASSESSMENT_FORM")
         fields = {field["name"]: field for field in result["ui"]["fields"]}
         self.assertEqual(fields["investmentObjectives"]["defaultValue"], "GROWTH, INCOME")
-        self.assertEqual(fields["experienceLevel"]["defaultValue"], "EXPERIENCED")
         self.assertEqual(fields["riskTolerance"]["defaultValue"], "MODERATE")
-        for name in ("investmentTimeHorizon", "liquidityNeeds", "productKnowledge"):
+        self.assertNotIn("experienceLevel", fields)
+        self.assertNotIn("productKnowledge", fields)
+        for name in ("investmentTimeHorizon", "liquidityNeeds"):
             self.assertTrue(fields[name]["required"])
             self.assertEqual(fields[name]["defaultValue"], "")
 
@@ -38,11 +38,9 @@ class RiskAssessmentTests(unittest.TestCase):
         payload = {
             "formId": "RISK_ASSESSMENT",
             "investmentObjectives": "growth, income",
-            "experienceLevel": "experienced",
             "riskTolerance": "moderate",
             "investmentTimeHorizon": "5_to_10_years",
             "liquidityNeeds": "medium",
-            "productKnowledge": "good",
         }
         state = {"messages": [HumanMessage(content="POC_FORM_SUBMISSION:" + json.dumps(payload))]}
         result = asyncio.run(understand_request(state))
