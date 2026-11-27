@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, EventEmitter, Input, Output, OnChanges, SimpleChanges } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { AgentUI, AgentUIField } from '../models/agent-ui.model';
 
@@ -55,10 +55,20 @@ import { AgentUI, AgentUIField } from '../models/agent-ui.model';
     button { justify-self: start; }
   `]
 })
-export class DynamicFormComponent {
+export class DynamicFormComponent implements OnChanges {
   @Input({ required: true }) ui!: AgentUI;
   @Output() submit = new EventEmitter<Record<string, unknown>>();
   values: Record<string, unknown> = {};
+
+  ngOnChanges(_changes: SimpleChanges): void {
+    // Materialize backend defaults into the form model so they are both visible
+    // and included in the structured submission, even when the user leaves them unchanged.
+    for (const field of this.ui?.fields ?? []) {
+      if (this.values[field.name] === undefined && field.defaultValue !== undefined) {
+        this.values[field.name] = field.defaultValue;
+      }
+    }
+  }
 
   isValid(): boolean {
     const fields = this.ui.fields ?? [];
