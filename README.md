@@ -258,3 +258,26 @@ The approval payload is a POC interaction contract, not a production authorizati
 3. Propagate authenticated RM identity and entitlements into the workflow.
 4. Integrate Pega workflow and downstream custody adapters.
 5. Add integration tests, tracing, audit, retries and OpenShift deployment manifests.
+
+
+## Registration requirements decision engine (Milestone 8A)
+
+The backend resolves a deterministic requirements matrix from the selected registration type. The rules are maintained in `backend/requirements_engine.py`; they are not inferred by the LLM.
+
+| Requirement | Individual | Individual TOD | Joint | Joint TOD |
+|---|---|---|---|---|
+| Primary owner details | Mandatory | Mandatory | Mandatory | Mandatory |
+| Joint owner details | Not required | Not required | Mandatory | Mandatory |
+| Beneficiary details | Optional | Optional | Optional | Optional |
+| Client profile confirmation | Mandatory | Mandatory | Mandatory | Mandatory |
+| Risk assessment | Mandatory | Mandatory | Mandatory | Mandatory |
+
+The engine returns a normalized requirement list with `key`, `label`, `status` and `required`. The current graph uses the resolved joint-owner rule to decide whether the joint-owner form is needed and includes the resolved matrix in the application review summary. Beneficiary details do not block the journey.
+
+**Milestone boundary:** this increment establishes and tests the decision matrix. It does not yet implement beneficiary capture or the risk-assessment screen/decision workflow. The existing client-profile confirmation remains a separate gate. Risk assessment is marked mandatory in the matrix but must be implemented as a dedicated journey step before the POC can claim that the full mandatory journey is complete.
+
+Run the decision-engine unit tests from the backend directory:
+
+```bash
+python -m unittest test_requirements_engine.py -v
+```
