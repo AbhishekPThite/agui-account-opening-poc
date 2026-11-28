@@ -20,6 +20,11 @@ from model_client import (
 from requirements_engine import build_registration_requirements, build_product_feature_requirements
 from workflow_state import AccountOpeningState
 from request_extraction import extract_request_data
+from domain_validation import (
+    validate_joint_owner_submission,
+    validate_risk_assessment,
+    validate_product_features,
+)
 
 
 EDITABLE_FIELDS = {
@@ -104,12 +109,7 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
     setup_submitted = form_submission and extracted.get("formId") == "ACCOUNT_SETUP"
     joint_owner_submission = form_submission and extracted.get("formId") == "JOINT_OWNER_DETAILS"
     if joint_owner_submission:
-        missing_joint = [
-            key for key in ("jointOwnerName", "jointOwnerTaxResidency")
-            if not str(extracted.get(key, "")).strip()
-        ]
-        if missing_joint:
-            raise ValueError("Joint-owner details are incomplete. Required fields: " + ", ".join(missing_joint))
+        validate_joint_owner_submission(extracted)
     profile_confirmed = form_submission and extracted.get("formId") == "PROFILE_CONFIRMATION"
     profile_capture = form_submission and extracted.get("formId") == "PROFILE_DATA_CAPTURE"
     profile_capture_requested = form_submission and extracted.get("formId") == "PROFILE_CAPTURE_REQUEST"
@@ -128,34 +128,14 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
         not form_submission
         and state.get("ui", {}).get("widgetId") == "PRODUCT_FEATURES_FORM"
     )
-    risk_fields = ("investmentObjectives", "investmentTimeHorizon", "liquidityNeeds", "riskTolerance")
-    submitted_risk = {
-        key: str(extracted.get(key, "")).strip()
-        for key in risk_fields
-        if str(extracted.get(key, "")).strip()
-    } if (risk_assessment_submission or risk_assessment_prefill or initial_journey_prefill) else {}
-    if risk_assessment_submission:
-        missing_risk = [key for key in risk_fields if not submitted_risk.get(key)]
-        if missing_risk:
-            raise ValueError("Risk assessment is incomplete. Required fields: " + ", ".join(missing_risk))
-        submitted_risk["investmentObjectives"] = [
-            value.strip().upper() for value in submitted_risk["investmentObjectives"].split(",") if value.strip()
-        ]
-        submitted_risk["riskTolerance"] = submitted_risk["riskTolerance"].upper()
-        submitted_risk["investmentTimeHorizon"] = submitted_risk["investmentTimeHorizon"].upper()
-        submitted_risk["liquidityNeeds"] = submitted_risk["liquidityNeeds"].upper()
-        allowed_risk_values = {
-            "riskTolerance": {"CONSERVATIVE", "MODERATE", "AGGRESSIVE"},
-            "investmentTimeHorizon": {"UNDER_3_YEARS", "3_TO_5_YEARS", "5_TO_10_YEARS", "OVER_10_YEARS"},
-            "liquidityNeeds": {"LOW", "MEDIUM", "HIGH"},
-        }
-        invalid_risk = [
-            key for key, allowed in allowed_risk_values.items()
-            if submitted_risk[key] not in allowed
-        ]
-        if not submitted_risk["investmentObjectives"] or invalid_risk:
-            raise ValueError("Risk assessment contains invalid values: " + ", ".join(invalid_risk or ["investmentObjectives"]))
-    submitted_features: dict[str, Any] = {}
+    risk_assessment_requested = (
+        risk_assessment_submission or risk_assessment_prefill or initial_journey_prefill
+    )
+    submitted_risk = validate_risk_assessment(
+        extracted,
+        requested=risk_assessment_requested,
+        submission=risk_assessment_submission,
+    )
     product_type_for_features = str(
         extracted.get("account_type") or extracted.get("productType")
         or state.get("product_type") or state.get("account_type") or ""
@@ -165,30 +145,12 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
         or product_features_prefill
         or (initial_journey_prefill and product_type_for_features in {"BROKERAGE", "CREDIT_FACILITY"})
     )
-    if should_assess_features:
-        if product_type_for_features not in {"BROKERAGE", "CREDIT_FACILITY"}:
-            raise ValueError("Select a supported product type before capturing product features.")
-        feature_schema = build_product_feature_requirements(product_type_for_features)
-        feature_fields = feature_schema["fields"]
-        for field in feature_fields:
-            name = field["name"]
-            value = str(extracted.get(name, "")).strip()
-            if not value:
-                if product_features_submission and field.get("required"):
-                    raise ValueError("Product features are incomplete. Required fields: " + name)
-                continue
-            if field["type"] == "select":
-                value = value.upper()
-                if value not in field["options"]:
-                    raise ValueError(f"Unsupported value for {name}: {value}")
-            elif field["type"] == "number":
-                try:
-                    value = float(value.replace(",", ""))
-                except ValueError as exc:
-                    raise ValueError(f"{name} must be a valid number.") from exc
-                if value <= 0:
-                    raise ValueError(f"{name} must be greater than zero.")
-            submitted_features[name] = value
+    submitted_features = validate_product_features(
+        extracted,
+        product_type=product_type_for_features,
+        requested=should_assess_features,
+        submission=product_features_submission,
+    )
     beneficiary_values = {
         key: str(extracted.get(key, "")).strip()
         for key in ("beneficiaryFullName", "beneficiaryRelationship", "beneficiaryDateOfBirth")
