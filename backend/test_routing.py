@@ -2,7 +2,7 @@
 
 import unittest
 
-from graph import route_after_request
+from graph import route_after_request, route_after_status
 
 
 class RouteAfterRequestTests(unittest.TestCase):
@@ -46,3 +46,16 @@ class RouteAfterRequestTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RouteAfterStatusTests(unittest.TestCase):
+    def test_explicit_approval_request_routes_to_human_approval(self):
+        state = {"approval_requested": True, "ui": {"widgetId": "ANY_WIDGET"}}
+        self.assertEqual(route_after_status(state), "await_approval")
+
+    def test_widget_id_does_not_trigger_approval(self):
+        state = {"approval_requested": False, "ui": {"widgetId": "APPLICATION_SUMMARY"}}
+        self.assertEqual(route_after_status(state), "finish")
+
+    def test_missing_approval_signal_finishes(self):
+        self.assertEqual(route_after_status({"ui": {"widgetId": "APPLICATION_SUMMARY"}}), "finish")
