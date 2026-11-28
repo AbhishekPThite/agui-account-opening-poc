@@ -1,1 +1,4 @@
-from domain.validation import *  # noqa: F401,F403
+"""Legacy module alias for domain.validation."""
+import sys
+from domain import validation as _implementation
+sys.modules[__name__] = _implementation

@@ -1,1 +1,4 @@
-from application.request_pipeline import *  # noqa: F401,F403
+"""Legacy module alias for application.request_pipeline."""
+import sys
+from application import request_pipeline as _implementation
+sys.modules[__name__] = _implementation

@@ -1,1 +1,4 @@
-from infrastructure.checkpointer import *  # noqa: F401,F403
+"""Legacy module alias for infrastructure.checkpointer."""
+import sys
+from infrastructure import checkpointer as _implementation
+sys.modules[__name__] = _implementation

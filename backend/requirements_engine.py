@@ -1,1 +1,4 @@
-from domain.requirements import *  # noqa: F401,F403
+"""Legacy module alias for domain.requirements."""
+import sys
+from domain import requirements as _implementation
+sys.modules[__name__] = _implementation

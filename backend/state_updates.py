@@ -1,1 +1,4 @@
-from application.state_updates import *  # noqa: F401,F403
+"""Legacy module alias for application.state_updates."""
+import sys
+from application import state_updates as _implementation
+sys.modules[__name__] = _implementation
