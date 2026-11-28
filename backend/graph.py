@@ -18,7 +18,6 @@ from model_client import (
     model,
 )
 from requirements_engine import build_registration_requirements, build_product_feature_requirements
-from application_assessment import assess_application
 from workflow_state import AccountOpeningState
 from ui_projection import build_journey_status, build_application_review_sections
 from request_extraction import extract_request_data
