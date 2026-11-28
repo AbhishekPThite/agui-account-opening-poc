@@ -25,6 +25,7 @@ from domain_validation import (
     validate_risk_assessment,
     validate_product_features,
 )
+from workflow_actions import classify_workflow_action
 
 
 EDITABLE_FIELDS = {
@@ -104,30 +105,29 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
         r"(?:tax residency|residency)\s*(?:is|:|to)\s*([A-Za-z][A-Za-z .'-]+?)(?:,|;|$)",
         text, state.get("joint_owner_tax_residency", "")
     )
-    dashboard_navigation = form_submission and extracted.get("formId") == "DASHBOARD_NAVIGATION"
-    requested_section = str(extracted.get("section", "")).strip().upper() if dashboard_navigation else ""
-    setup_submitted = form_submission and extracted.get("formId") == "ACCOUNT_SETUP"
-    joint_owner_submission = form_submission and extracted.get("formId") == "JOINT_OWNER_DETAILS"
+    actions = classify_workflow_action(
+        extracted,
+        form_submission=form_submission,
+        active_widget=active_widget,
+    )
+    dashboard_navigation = actions.dashboard_navigation
+    requested_section = actions.requested_section
+    setup_submitted = actions.setup_submitted
+    joint_owner_submission = actions.joint_owner_submission
     if joint_owner_submission:
         validate_joint_owner_submission(extracted)
-    profile_confirmed = form_submission and extracted.get("formId") == "PROFILE_CONFIRMATION"
-    profile_capture = form_submission and extracted.get("formId") == "PROFILE_DATA_CAPTURE"
-    profile_capture_requested = form_submission and extracted.get("formId") == "PROFILE_CAPTURE_REQUEST"
-    beneficiary_capture = form_submission and extracted.get("formId") == "BENEFICIARY_CAPTURE"
-    beneficiary_prefill = not form_submission and active_widget == "BENEFICIARY_CAPTURE"
-    profile_data_prefill = not form_submission and active_widget == "PROFILE_DATA_CAPTURE"
-    beneficiary_skip = form_submission and extracted.get("formId") == "BENEFICIARY_SKIP"
-    risk_assessment_submission = form_submission and extracted.get("formId") == "RISK_ASSESSMENT"
-    risk_assessment_prefill = (
-        not form_submission
-        and state.get("ui", {}).get("widgetId") == "RISK_ASSESSMENT_FORM"
-    )
-    initial_journey_prefill = not form_submission and not active_widget
-    product_features_submission = form_submission and extracted.get("formId") == "PRODUCT_FEATURES"
-    product_features_prefill = (
-        not form_submission
-        and state.get("ui", {}).get("widgetId") == "PRODUCT_FEATURES_FORM"
-    )
+    profile_confirmed = actions.profile_confirmed
+    profile_capture = actions.profile_capture
+    profile_capture_requested = actions.profile_capture_requested
+    beneficiary_capture = actions.beneficiary_capture
+    beneficiary_prefill = actions.beneficiary_prefill
+    profile_data_prefill = actions.profile_data_prefill
+    beneficiary_skip = actions.beneficiary_skip
+    risk_assessment_submission = actions.risk_assessment_submission
+    risk_assessment_prefill = actions.risk_assessment_prefill
+    initial_journey_prefill = actions.initial_journey_prefill
+    product_features_submission = actions.product_features_submission
+    product_features_prefill = actions.product_features_prefill
     risk_assessment_requested = (
         risk_assessment_submission or risk_assessment_prefill or initial_journey_prefill
     )
