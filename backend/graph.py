@@ -855,10 +855,6 @@ async def create_draft(
         "messages": [AIMessage(content=logger_message)],
     }
 
-def route_after_requirements(state: AccountOpeningState) -> str:
-    return "wait_for_input" if state.get("missing_fields") else "await_approval"
-
-
 def route_after_approval(state: AccountOpeningState) -> str:
     if state.get("approval_status") == "APPROVED":
         return "create_draft"
@@ -874,7 +870,6 @@ def build_graph(
 ):
     workflow = StateGraph(AccountOpeningState)
     workflow.add_node("understand_request", understand_request)
-    workflow.add_node("prepare_account_setup", prepare_account_setup)
     workflow.add_node("prepare_joint_owner_capture", prepare_joint_owner_capture)
     workflow.add_node("prepare_application_dashboard", prepare_application_dashboard)
     workflow.add_node("open_dashboard_section", open_dashboard_section)
@@ -884,13 +879,7 @@ def build_graph(
 
     workflow.add_node("retrieve_client", retrieve_client_node)
     workflow.add_node("assess_client_profile", assess_client_profile)
-    workflow.add_node("prepare_profile_assessment", prepare_profile_assessment)
     workflow.add_node("prepare_profile_capture", prepare_profile_capture)
-    workflow.add_node("prepare_beneficiary_capture", prepare_beneficiary_capture)
-    workflow.add_node("prepare_risk_assessment", prepare_risk_assessment)
-    workflow.add_node("prepare_product_features", prepare_product_features)
-    workflow.add_node("determine_requirements", determine_requirements)
-    workflow.add_node("prepare_ui", prepare_ui)
     workflow.add_node("await_approval", await_human_approval)
     async def create_draft_node(state: AccountOpeningState) -> dict[str, Any]:
         return await create_draft(state, draft_api)
@@ -910,33 +899,12 @@ def build_graph(
             "stay": END,
         },
     )
-    workflow.add_edge("prepare_account_setup", "publish_journey_status")
     workflow.add_edge("prepare_joint_owner_capture", "publish_journey_status")
     workflow.add_edge("retrieve_client", "assess_client_profile")
     workflow.add_edge("assess_client_profile", "prepare_application_dashboard")
     workflow.add_edge("prepare_application_dashboard", END)
     workflow.add_edge("open_dashboard_section", "publish_journey_status")
-    workflow.add_edge("prepare_profile_assessment", "publish_journey_status")
     workflow.add_edge("prepare_profile_capture", "publish_journey_status")
-    def route_after_data_requirements(state: AccountOpeningState) -> str:
-        if state.get("missing_fields"):
-            return "joint_owner"
-        if not state.get("beneficiary_capture_completed"):
-            return "beneficiary"
-        if not state.get("risk_assessment_completed"):
-            return "risk_assessment"
-        if not state.get("product_features_completed"):
-            return "product_features"
-        return "review"
-
-    workflow.add_conditional_edges(
-        "determine_requirements", route_after_data_requirements,
-        {"joint_owner": "prepare_ui", "beneficiary": "prepare_beneficiary_capture", "risk_assessment": "prepare_risk_assessment", "product_features": "prepare_product_features", "review": "prepare_ui"},
-    )
-    workflow.add_edge("prepare_beneficiary_capture", "publish_journey_status")
-    workflow.add_edge("prepare_risk_assessment", "publish_journey_status")
-    workflow.add_edge("prepare_product_features", "publish_journey_status")
-    workflow.add_edge("prepare_ui", "publish_journey_status")
     def route_after_status(state: AccountOpeningState) -> str:
         return "await_approval" if state.get("ui", {}).get("widgetId") == "APPLICATION_SUMMARY" else "finish"
 
