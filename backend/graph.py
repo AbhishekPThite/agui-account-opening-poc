@@ -18,6 +18,7 @@ from model_client import (
     model,
 )
 from requirements_engine import build_registration_requirements, build_product_feature_requirements
+from application_assessment import assess_application
 from workflow_state import AccountOpeningState
 from request_extraction import extract_request_data
 from request_pipeline import prepare_validated_request
@@ -94,48 +95,9 @@ def parse_form_submission(text: str) -> dict[str, Any]:
 
 
 def build_journey_status(state: AccountOpeningState) -> dict[str, Any]:
-    """Build a deterministic, UI-agnostic progress model from workflow state."""
-    ui = state.get("ui", {})
-    widget_id = ui.get("widgetId", "")
-    profile_assessment = state.get("profile_assessment", {})
-    profile_has_actions = bool(profile_assessment.get("actionRequired"))
-    ownership = str(state.get("ownership", "INDIVIDUAL")).upper()
-    joint_required = ownership in {"JOINT", "JOINT_TOD"}
-    product_type = str(state.get("product_type") or state.get("account_type") or "").upper()
-    account_missing = []
-    if product_type not in {"BROKERAGE", "CREDIT_FACILITY"}:
-        account_missing.append("productType")
-    if ownership not in {"INDIVIDUAL", "INDIVIDUAL_TOD", "JOINT", "JOINT_TOD"}:
-        account_missing.append("registrationType")
-    if not str(state.get("account_nickname") or "Brokerage 1").strip():
-        account_missing.append("accountNickname")
-    if joint_required:
-        if not str(state.get("joint_owner_name", "")).strip():
-            account_missing.append("jointOwnerName")
-        if not str(state.get("joint_owner_tax_residency", "")).strip():
-            account_missing.append("jointOwnerTaxResidency")
-
-    # Risk answers are sourced only from explicit user selections or chat extraction.
-    # Do not silently seed the assessment from the retrieved client profile.
-    risk = state.get("risk_assessment", {})
-    risk_values = {
-        "investmentObjectives": risk.get("investmentObjectives"),
-        "investmentTimeHorizon": risk.get("investmentTimeHorizon"),
-        "liquidityNeeds": risk.get("liquidityNeeds"),
-        "riskTolerance": risk.get("riskTolerance"),
-    }
-    risk_missing = [key for key, value in risk_values.items() if value is None or value == "" or value == []]
-
-    feature_schema = build_product_feature_requirements(product_type) if product_type in {"BROKERAGE", "CREDIT_FACILITY"} else {"fields": []}
-    features = state.get("product_features", {})
-    feature_missing = [
-        field["name"] for field in feature_schema["fields"]
-        if field.get("required")
-        and (features.get(field["name"]) is None or features.get(field["name"]) == "")
-        and (field.get("defaultValue") is None or field.get("defaultValue") == "")
-    ]
-    draft_created = widget_id == "DRAFT_CONFIRMATION"
-
+    """Project domain assessment into the dashboard's journey-status UI contract."""
+    assessment = assess_application(state)
+    widget_id = state.get("ui", {}).get("widgetId", "")
     current_by_widget = {
         "APPLICATION_DASHBOARD": "DASHBOARD",
         "PROFILE_ASSESSMENT": "PROFILE",
@@ -148,54 +110,33 @@ def build_journey_status(state: AccountOpeningState) -> dict[str, Any]:
         "APPLICATION_SUMMARY": "SUMMARY",
         "DRAFT_CONFIRMATION": "SUMMARY",
     }
-    current_stage = current_by_widget.get(widget_id)
 
-    stages = [
-        {"id": "ACCOUNT_DETAILS", "label": "Account Details"},
-        {"id": "PROFILE", "label": "Client Profile"},
-        {"id": "RISK_PROFILE", "label": "Risk Profile"},
-        {"id": "FEATURES", "label": "Features"},
-        {"id": "SUMMARY", "label": "Summary"},
+    stage_definitions = [
+        ("ACCOUNT_DETAILS", "Account Details", "Select product, registration and account ownership details."),
+        ("PROFILE", "Client Profile", "Review existing client information and complete missing mandatory details."),
+        ("RISK_PROFILE", "Risk Profile", "Review objectives, time horizon, liquidity and risk tolerance."),
+        ("FEATURES", "Features", "Review product-specific elections and preferences."),
+        ("SUMMARY", "Summary", "Review the complete application before explicit draft approval."),
     ]
-    statuses: dict[str, str] = {}
-    statuses["PROFILE"] = (
-        "ACTION_REQUIRED" if profile_has_actions else
-        "COMPLETED" if profile_assessment else
-        "PENDING"
-    )
-    statuses["ACCOUNT_DETAILS"] = "ACTION_REQUIRED" if account_missing else "COMPLETED"
-    statuses["RISK_PROFILE"] = "ACTION_REQUIRED" if risk_missing else "COMPLETED"
-    product_selected = bool(product_type)
-    statuses["FEATURES"] = (
-        "PENDING" if not product_selected else
-        "ACTION_REQUIRED" if feature_missing else
-        "COMPLETED"
-    )
-    statuses["SUMMARY"] = (
-        "COMPLETED" if draft_created else
-        "ACTION_REQUIRED" if all(statuses.get(key) == "COMPLETED" for key in ("PROFILE", "ACCOUNT_DETAILS", "RISK_PROFILE", "FEATURES")) else
-        "PENDING"
-    )
-
-    for stage in stages:
-        stage["status"] = statuses[stage["id"]]
+    stages = [
+        {"id": section_id, "label": label, "status": assessment["statuses"][section_id]}
+        for section_id, label, _ in stage_definitions
+    ]
     completed_count = sum(1 for stage in stages if stage["status"] == "COMPLETED")
     return {
         "stages": stages,
-        "currentStage": current_stage,
+        "currentStage": current_by_widget.get(widget_id),
         "completedCount": completed_count,
         "totalCount": len(stages),
         "overallStatus": "COMPLETED" if completed_count == len(stages) else "IN_PROGRESS",
         "sections": [
-            {"id": stage["id"], "label": stage["label"], "status": stage["status"],
-             "description": {
-                 "PROFILE": "Review existing client information and complete missing mandatory details.",
-                 "ACCOUNT_DETAILS": "Select product, registration and account ownership details.",
-                 "RISK_PROFILE": "Review objectives, time horizon, liquidity and risk tolerance.",
-                 "FEATURES": "Review product-specific elections and preferences.",
-                 "SUMMARY": "Review the complete application before explicit draft approval.",
-             }[stage["id"]]}
-            for stage in stages
+            {
+                "id": section_id,
+                "label": label,
+                "status": assessment["statuses"][section_id],
+                "description": description,
+            }
+            for section_id, label, description in stage_definitions
         ],
     }
 
