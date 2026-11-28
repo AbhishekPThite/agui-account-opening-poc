@@ -899,11 +899,16 @@ def build_graph(
 
     workflow.add_edge(START, "understand_request")
     workflow.add_conditional_edges(
-        "understand_request", route_after_request,
-        {"show_setup": "prepare_account_setup", "retrieve_client": "retrieve_client",
-         "dashboard": "prepare_application_dashboard", "open_section": "open_dashboard_section",
-         "continue_journey": "prepare_application_dashboard", "capture_profile": "prepare_profile_capture",
-         "joint_owner": "prepare_joint_owner_capture", "stay": END},
+        "understand_request",
+        route_after_request,
+        {
+            "retrieve_client": "retrieve_client",
+            "dashboard": "prepare_application_dashboard",
+            "open_section": "open_dashboard_section",
+            "capture_profile": "prepare_profile_capture",
+            "joint_owner": "prepare_joint_owner_capture",
+            "stay": END,
+        },
     )
     workflow.add_edge("prepare_account_setup", "publish_journey_status")
     workflow.add_edge("prepare_joint_owner_capture", "publish_journey_status")
