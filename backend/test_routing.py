@@ -44,10 +44,6 @@ class RouteAfterRequestTests(unittest.TestCase):
         self.assertEqual(route_after_request(state), "dashboard")
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class RouteAfterStatusTests(unittest.TestCase):
     def test_explicit_approval_request_routes_to_human_approval(self):
         state = {"approval_requested": True, "ui": {"widgetId": "ANY_WIDGET"}}
@@ -59,3 +55,6 @@ class RouteAfterStatusTests(unittest.TestCase):
 
     def test_missing_approval_signal_finishes(self):
         self.assertEqual(route_after_status({"ui": {"widgetId": "APPLICATION_SUMMARY"}}), "finish")
+
+if __name__ == "__main__":
+    unittest.main()
