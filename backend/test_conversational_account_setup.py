@@ -13,7 +13,11 @@ class ConversationalAccountSetupTests(unittest.TestCase):
         state["messages"] = [HumanMessage(content=message)]
         with patch("graph.model", object()), patch(
             "graph.extract_account_request", new_callable=AsyncMock
-        ) as extractor:
+        ) as extractor, patch(
+            "graph.extract_risk_assessment", new_callable=AsyncMock, return_value={}
+        ), patch(
+            "graph.extract_product_features", new_callable=AsyncMock, return_value={}
+        ):
             extractor.return_value = extracted
             return asyncio.run(understand_request(state))
 
