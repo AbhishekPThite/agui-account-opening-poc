@@ -467,34 +467,54 @@ def prepare_beneficiary_capture(state: AccountOpeningState) -> dict[str, Any]:
 
 
 def build_application_review_sections(state: AccountOpeningState) -> list[dict[str, Any]]:
-    """Build read-only, section-grouped review data for the final application summary."""
+    """Project the authoritative domain assessment into read-only review sections."""
     profile = state.get("client_profile", {})
-    assessment = state.get("profile_assessment", {})
+    profile_assessment = state.get("profile_assessment", {})
     ownership = str(state.get("ownership", "INDIVIDUAL")).upper()
-    product_type = str(state.get("product_type") or state.get("account_type") or "")
+    product_type = str(state.get("product_type") or state.get("account_type") or "").upper()
     risk = state.get("risk_assessment", {})
     features = state.get("product_features", {})
+    domain_assessment = assess_application(state)
+    missing_by_section = domain_assessment["missing_fields"]
     sections: list[dict[str, Any]] = []
 
-    def field(label: str, value: Any, required: bool = False) -> dict[str, Any]:
+    def field(
+        label: str,
+        value: Any,
+        required: bool = False,
+        domain_key: str | None = None,
+        section_id: str | None = None,
+    ) -> dict[str, Any]:
         present = value is not None and value != "" and value != []
         if isinstance(value, list):
             display = ", ".join(str(item) for item in value) if value else "Not provided"
         else:
             display = str(value) if present else "Not provided"
-        return {"label": label, "value": display, "required": required,
-                "missing": required and not present}
+        missing = (
+            domain_key in missing_by_section.get(section_id, [])
+            if required and domain_key and section_id
+            else required and not present
+        )
+        return {
+            "label": label,
+            "value": display,
+            "required": required,
+            "missing": missing,
+        }
 
     account_fields = [
-        field("Product type", product_type, True),
-        field("Registration type", ownership, True),
-        field("Account nickname", state.get("account_nickname") or "Brokerage 1", True),
+        field("Product type", product_type, True, "productType", "ACCOUNT_DETAILS"),
+        field("Registration type", ownership, True, "registrationType", "ACCOUNT_DETAILS"),
+        field("Account nickname", state.get("account_nickname") or "Brokerage 1", True,
+              "accountNickname", "ACCOUNT_DETAILS"),
         field("Margin option", state.get("margin_option", "NONE")),
     ]
     if ownership in {"JOINT", "JOINT_TOD"}:
         account_fields.extend([
-            field("Joint owner full name", state.get("joint_owner_name"), True),
-            field("Joint owner tax residency", state.get("joint_owner_tax_residency"), True),
+            field("Joint owner full name", state.get("joint_owner_name"), True,
+                  "jointOwnerName", "ACCOUNT_DETAILS"),
+            field("Joint owner tax residency", state.get("joint_owner_tax_residency"), True,
+                  "jointOwnerTaxResidency", "ACCOUNT_DETAILS"),
         ])
     beneficiary = state.get("beneficiary_data", {})
     account_fields.extend([
@@ -502,16 +522,19 @@ def build_application_review_sections(state: AccountOpeningState) -> list[dict[s
         field("Beneficiary relationship", beneficiary.get("beneficiaryRelationship")),
         field("Beneficiary date of birth", beneficiary.get("beneficiaryDateOfBirth")),
     ])
-    sections.append({"id": "ACCOUNT_DETAILS", "label": "Account Details",
-                     "status": "ACTION_REQUIRED" if any(x["missing"] for x in account_fields) else "COMPLETED",
-                     "fields": account_fields})
+    sections.append({
+        "id": "ACCOUNT_DETAILS",
+        "label": "Account Details",
+        "status": domain_assessment["statuses"]["ACCOUNT_DETAILS"],
+        "fields": account_fields,
+    })
 
     profile_fields: list[dict[str, Any]] = [
         field("Client name", profile.get("displayName")),
         field("Client ID", profile.get("clientId") or state.get("client_id"), True),
         field("KYC status", profile.get("kycStatus")),
     ]
-    for group in assessment.get("sections", []):
+    for group in profile_assessment.get("sections", []):
         for item in group.get("fields", []):
             profile_fields.append({
                 "label": f"{group.get('name', 'Profile')} · {item.get('label', '')}",
@@ -519,39 +542,56 @@ def build_application_review_sections(state: AccountOpeningState) -> list[dict[s
                 "required": bool(item.get("required")),
                 "missing": bool(item.get("missing")),
             })
-    sections.append({"id": "PROFILE", "label": "Client Profile",
-                     "status": "ACTION_REQUIRED" if profile_has_missing(profile_fields) else "COMPLETED",
-                     "fields": profile_fields})
+    sections.append({
+        "id": "PROFILE",
+        "label": "Client Profile",
+        "status": domain_assessment["statuses"]["PROFILE"],
+        "fields": profile_fields,
+    })
 
-    risk_values = {
-        "investmentObjectives": risk.get("investmentObjectives"),
-        "investmentTimeHorizon": risk.get("investmentTimeHorizon"),
-        "liquidityNeeds": risk.get("liquidityNeeds"),
-        "riskTolerance": risk.get("riskTolerance"),
-    }
     risk_fields = [
-        field("Investment objectives", risk_values["investmentObjectives"], True),
-        field("Investment time horizon", risk_values["investmentTimeHorizon"], True),
-        field("Liquidity needs", risk_values["liquidityNeeds"], True),
-        field("Risk tolerance", risk_values["riskTolerance"], True),
+        field("Investment objectives", risk.get("investmentObjectives"), True,
+              "investmentObjectives", "RISK_PROFILE"),
+        field("Investment time horizon", risk.get("investmentTimeHorizon"), True,
+              "investmentTimeHorizon", "RISK_PROFILE"),
+        field("Liquidity needs", risk.get("liquidityNeeds"), True,
+              "liquidityNeeds", "RISK_PROFILE"),
+        field("Risk tolerance", risk.get("riskTolerance"), True,
+              "riskTolerance", "RISK_PROFILE"),
     ]
-    sections.append({"id": "RISK_PROFILE", "label": "Risk Assessment",
-                     "status": "ACTION_REQUIRED" if any(x["missing"] for x in risk_fields) else "COMPLETED",
-                     "fields": risk_fields})
+    sections.append({
+        "id": "RISK_PROFILE",
+        "label": "Risk Assessment",
+        "status": domain_assessment["statuses"]["RISK_PROFILE"],
+        "fields": risk_fields,
+    })
 
-    feature_schema = build_product_feature_requirements(product_type) if product_type in {"BROKERAGE", "CREDIT_FACILITY"} else {"fields": []}
+    feature_schema = (
+        build_product_feature_requirements(product_type)
+        if product_type in {"BROKERAGE", "CREDIT_FACILITY"}
+        else {"fields": []}
+    )
     feature_fields = [
-        field(definition["label"],
-              (features.get(definition["name"]) if features.get(definition["name"]) not in (None, "") else definition.get("defaultValue")),
-              bool(definition.get("required")))
+        field(
+            definition["label"],
+            (
+                features.get(definition["name"])
+                if features.get(definition["name"]) not in (None, "")
+                else definition.get("defaultValue")
+            ),
+            bool(definition.get("required")),
+            definition["name"],
+            "FEATURES",
+        )
         for definition in feature_schema["fields"]
     ]
-    sections.append({"id": "FEATURES", "label": "Product Features",
-                     "status": "PENDING" if not product_type else
-                     "ACTION_REQUIRED" if any(x["missing"] for x in feature_fields) else "COMPLETED",
-                     "fields": feature_fields})
+    sections.append({
+        "id": "FEATURES",
+        "label": "Product Features",
+        "status": domain_assessment["statuses"]["FEATURES"],
+        "fields": feature_fields,
+    })
     return sections
-
 
 def profile_has_missing(fields: list[dict[str, Any]]) -> bool:
     return any(item.get("missing") for item in fields)
