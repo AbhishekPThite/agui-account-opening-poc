@@ -24,14 +24,34 @@ uvicorn main:app --reload --port 8000
 ```
 
 ## 2. Start Angular
-In this folder:
+
+The Angular workspace lives in `frontend/` at the repository root. Always start the dev server from that directory, not from the former `angular-test-client/` path.
+
+From the repository root:
 
 ```bash
-npm install
+cd frontend
+npm ci
+npm start
+```
+
+Or, if dependencies are already installed:
+
+```bash
+cd frontend
 npm start
 ```
 
 Open http://localhost:4200. The Angular dev proxy forwards `/agent` to `http://localhost:8000`.
+
+### If the dev server still reports paths under angular-test-client
+
+1. Stop the old Angular process with `Ctrl+C` in the terminal where it is running.
+2. Open a new terminal at the repository root and run `cd frontend`.
+3. Confirm `pwd` ends with `/agui-account-opening-poc/frontend`.
+4. Run `npm start` again.
+
+The workspace configuration in `frontend/angular.json` expects `src/main.ts`, `src/styles.css` and `tsconfig.app.json`, all relative to `frontend/`. Do not copy these files back into the old directory or maintain a second Angular workspace.
 
 ## 3. Test
 1. Keep the default request: `Open a joint brokerage account for client C12345 with USD as base currency.`

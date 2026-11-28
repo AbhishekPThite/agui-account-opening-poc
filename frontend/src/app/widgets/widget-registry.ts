@@ -1,12 +1,10 @@
 import { Type } from '@angular/core';
 import { AgentWidgetInstance } from '../models/agent-ui.model';
-import {
-  AccountSummaryComponent,
-  DraftConfirmationComponent,
-  DynamicFormComponent,
-  InformationAlertComponent,
-  ProfileAssessmentComponent
-} from './widget-components';
+import { AccountSummaryComponent } from './account-summary.component';
+import { DraftConfirmationComponent } from './draft-confirmation.component';
+import { DynamicFormComponent } from './dynamic-form.component';
+import { InformationAlertComponent } from './information-alert.component';
+import { ProfileAssessmentComponent } from './profile-assessment.component';
 
 export const WIDGET_REGISTRY: Record<string, Type<AgentWidgetInstance>> = {
   JOINT_OWNER_FORM: DynamicFormComponent,

@@ -603,6 +603,14 @@ Run the complete backend regression suite from `backend/`:
 python -m unittest discover -s tests -t . -v
 ```
 
+Run the Angular client from the repository root:
+
+```bash
+cd frontend
+npm ci
+npm start
+```
+
 Build the Angular client from `frontend/`:
 
 ```bash
