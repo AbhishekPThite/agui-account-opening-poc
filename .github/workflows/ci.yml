@@ -12,7 +12,10 @@ jobs:
   backend-regression:
     runs-on: ubuntu-latest
     env:
-      LLM_ENABLED: "false"
+      LLM_ENABLED: "true"
+      OPENAI_BASE_URL: "http://127.0.0.1:9999/v1"
+      OPENAI_API_KEY: "ci-placeholder"
+      OPENAI_MODEL: "ci-placeholder"
     defaults:
       run:
         working-directory: backend
