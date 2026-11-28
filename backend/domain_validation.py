@@ -108,7 +108,11 @@ def validate_product_features(
         if field["type"] == "select":
             value = value.upper()
             if value not in field["options"]:
-                raise ValueError(f"Unsupported value for {name}: {value}")
+                if submission:
+                    raise ValueError(f"Unsupported value for {name}: {value}")
+                # Conversational prefill is best-effort: ignore unsupported
+                # candidates and preserve the previously accepted state value.
+                continue
         elif field["type"] == "number":
             try:
                 value = float(value.replace(",", ""))
