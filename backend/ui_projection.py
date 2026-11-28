@@ -9,6 +9,7 @@ from typing import Any
 
 from application_assessment import assess_application
 from requirements_engine import build_product_feature_requirements
+from workflow_state import AccountOpeningState
 
 
 def build_journey_status(state: AccountOpeningState) -> dict[str, Any]:
