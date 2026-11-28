@@ -19,6 +19,7 @@ from model_client import (
 )
 from requirements_engine import build_registration_requirements, build_product_feature_requirements
 from workflow_state import AccountOpeningState
+from request_extraction import extract_request_data
 
 
 EDITABLE_FIELDS = {
@@ -56,55 +57,16 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
     active_ui = state.get("ui", {})
     assistant_answer = ""
     if not form_submission and text:
-        if active_widget == "RISK_ASSESSMENT_FORM":
-            extracted = await extract_risk_assessment(text) if model is not None else {}
-        elif active_widget == "PRODUCT_FEATURES_FORM":
-            active_product = str(state.get("product_type", state.get("account_type", ""))).upper()
-            product_schema = build_product_feature_requirements(active_product)
-            extracted = await extract_product_features(
-                text,
-                product_type=active_product,
-                field_definitions=product_schema["fields"],
-            ) if model is not None else {}
-        elif active_widget in {
-            "ACCOUNT_SETUP_FORM", "JOINT_OWNER_FORM", "BENEFICIARY_CAPTURE", "PROFILE_DATA_CAPTURE"
-        }:
-            extracted = await extract_active_form_fields(
-                text,
-                widget_title=str(active_ui.get("title", "Account opening")),
-                field_definitions=active_ui.get("fields", []),
-            ) if model is not None else {}
-        elif active_widget == "PROFILE_ASSESSMENT":
-            extracted = {}
-        else:
-            # On the first message, capture explicitly supplied values across
-            # the whole journey, not only the account-setup screen. These
-            # values are staged in state and shown later as form defaults.
-            extracted = await extract_account_request(text) if model is not None else {}
-            if model is not None and not active_widget:
-                initial_product = str(
-                    extracted.get("account_type") or extracted.get("productType")
-                    or state.get("product_type") or state.get("account_type") or ""
-                ).upper()
-                initial_risk = await extract_risk_assessment(text)
-                extracted.update(initial_risk)
-                if initial_product in {"BROKERAGE", "CREDIT_FACILITY"}:
-                    initial_schema = build_product_feature_requirements(initial_product)
-                    initial_features = await extract_product_features(
-                        text,
-                        product_type=initial_product,
-                        field_definitions=initial_schema["fields"],
-                    )
-                    extracted.update(initial_features)
-
-        if not any(str(value).strip() for value in extracted.values()):
-            assistant_answer = await answer_journey_question(
-                text,
-                widget_title=str(active_ui.get("title", "Account opening")),
-                widget_description=str(active_ui.get("description", "")),
-                field_definitions=active_ui.get("fields", []),
-                product_type=str(state.get("product_type", state.get("account_type", ""))),
-            )
+        extracted, assistant_answer = await extract_request_data(
+            text,
+            state,
+            model_enabled=model is not None,
+            extract_account_request_fn=extract_account_request,
+            extract_risk_assessment_fn=extract_risk_assessment,
+            extract_product_features_fn=extract_product_features,
+            extract_active_form_fields_fn=extract_active_form_fields,
+            answer_journey_question_fn=answer_journey_question,
+        )
 
     client_id = extracted.get("client_id") or extracted.get("clientId") or extract_value(
         r"\bclient\s+([A-Z0-9-]+)", text, state.get("client_id", "C12345")
