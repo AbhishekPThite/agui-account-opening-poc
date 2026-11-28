@@ -53,7 +53,17 @@ Open http://localhost:4200. The Angular dev proxy forwards `/agent` to `http://l
 
 The workspace configuration in `frontend/angular.json` expects `src/main.ts`, `src/styles.css` and `tsconfig.app.json`, all relative to `frontend/`. Do not copy these files back into the old directory or maintain a second Angular workspace.
 
-## 3. Test
+## 3. Automated UI unit tests
+
+Run the service-level unit tests from `frontend/`:
+
+```bash
+npm test
+```
+
+The suite covers conversation thread lifecycle and interrupt resumption, AG-UI event-to-state transitions, journey-state updates, and widget payload mapping. Tests use Node's built-in test runner and the existing esbuild toolchain; no browser is required.
+
+## 4. Manual UI smoke test
 1. Keep the default request: `Open a joint brokerage account for client C12345 with USD as base currency.`
 2. Click **Start account opening**.
 3. The agent should retrieve the mock profile and request joint-owner details.
