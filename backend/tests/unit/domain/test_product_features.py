@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import AsyncMock, patch
 
 from langchain_core.messages import HumanMessage
-from graph import understand_request, prepare_product_features
+from workflow.nodes import understand_request, prepare_product_features
 from domain.requirements import build_product_feature_requirements
 from integrations.llm.model_client import extract_product_features
 
@@ -65,7 +65,7 @@ class ProductFeatureTests(unittest.TestCase):
             "mutualFundsTaxLotMethod": "",
             "otherSecuritiesTaxLotMethod": "",
         }
-        with patch("graph.extract_product_features", new=AsyncMock(return_value=extracted)):
+        with patch("workflow.nodes.extract_product_features", new=AsyncMock(return_value=extracted)):
             result = asyncio.run(understand_request(state))
 
         self.assertEqual(result["product_features"]["optionsTradingElection"], "YES")
@@ -86,7 +86,7 @@ class ProductFeatureTests(unittest.TestCase):
             "collateralType": "SECURITIES",
             "facilityPurpose": "LIQUIDITY",
         }
-        with patch("graph.extract_product_features", new=AsyncMock(return_value=extracted)):
+        with patch("workflow.nodes.extract_product_features", new=AsyncMock(return_value=extracted)):
             result = asyncio.run(understand_request(state))
 
         self.assertEqual(result["product_features"]["requestedCreditLimit"], 250000.0)

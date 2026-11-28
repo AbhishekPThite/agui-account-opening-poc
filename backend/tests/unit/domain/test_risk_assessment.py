@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import AsyncMock, patch
 
 from langchain_core.messages import HumanMessage
-from graph import understand_request, prepare_risk_assessment
+from workflow.nodes import understand_request, prepare_risk_assessment
 
 
 class RiskAssessmentTests(unittest.TestCase):
@@ -74,7 +74,7 @@ class RiskAssessmentTests(unittest.TestCase):
             "liquidityNeeds": "",
             "riskTolerance": "",
         }
-        with patch("graph.extract_risk_assessment", new=AsyncMock(return_value=extracted)):
+        with patch("workflow.nodes.extract_risk_assessment", new=AsyncMock(return_value=extracted)):
             result = asyncio.run(understand_request(state))
 
         self.assertEqual(result["risk_assessment"]["investmentTimeHorizon"], "5_TO_10_YEARS")

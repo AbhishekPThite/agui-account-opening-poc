@@ -3,8 +3,8 @@ from __future__ import annotations
 from typing import Any
 
 from langgraph.graph import StateGraph, START, END
-from ..infrastructure.checkpointer import checkpointer
-from .state import AccountOpeningState
+from infrastructure.checkpointer import checkpointer
+from workflow.state import AccountOpeningState
 from .nodes import (
     assess_client_profile,
     await_human_approval,

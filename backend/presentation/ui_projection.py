@@ -7,9 +7,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..domain.assessment import assess_application
-from ..domain.requirements import build_product_feature_requirements
-from ..workflow.state import AccountOpeningState
+from domain.assessment import assess_application
+from domain.requirements import build_product_feature_requirements
+from workflow.state import AccountOpeningState
 
 
 def build_journey_status(state: AccountOpeningState) -> dict[str, Any]:

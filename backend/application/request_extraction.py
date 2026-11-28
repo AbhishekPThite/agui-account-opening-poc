@@ -8,8 +8,8 @@ from __future__ import annotations
 
 from typing import Any, Awaitable, Callable
 
-from ..domain.requirements import build_product_feature_requirements
-from ..workflow.state import AccountOpeningState
+from domain.requirements import build_product_feature_requirements
+from workflow.state import AccountOpeningState
 
 
 Extractor = Callable[..., Awaitable[dict[str, Any]]]
