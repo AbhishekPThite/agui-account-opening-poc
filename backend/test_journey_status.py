@@ -198,5 +198,38 @@ class JourneyStatusTests(unittest.TestCase):
         self.assertEqual(result["completedCount"], 5)
 
 
+    def test_review_section_statuses_and_missing_flags_use_domain_assessment(self):
+        state = {
+            "product_type": "BROKERAGE",
+            "ownership": "JOINT",
+            "account_nickname": "Family Brokerage",
+            "joint_owner_name": "",
+            "joint_owner_tax_residency": "",
+            "profile_assessment": {"actionRequired": []},
+            "risk_assessment": {
+                "investmentObjectives": ["GROWTH"],
+                "investmentTimeHorizon": "5_TO_10_YEARS",
+                "liquidityNeeds": "MEDIUM",
+                "riskTolerance": "MODERATE",
+            },
+            "product_features": {},
+        }
+        journey = build_journey_status(state)
+        review = build_application_review_sections(state)
+        journey_statuses = {item["id"]: item["status"] for item in journey["sections"]}
+        review_statuses = {item["id"]: item["status"] for item in review}
+
+        self.assertEqual(review_statuses, {
+            key: journey_statuses[key]
+            for key in ("ACCOUNT_DETAILS", "PROFILE", "RISK_PROFILE", "FEATURES")
+        })
+        account_fields = {item["label"]: item for item in review[0]["fields"]}
+        self.assertTrue(account_fields["Joint owner full name"]["missing"])
+        self.assertTrue(account_fields["Joint owner tax residency"]["missing"])
+        self.assertFalse(account_fields["Account nickname"]["missing"])
+        risk_fields = {item["label"]: item for item in review[2]["fields"]}
+        self.assertFalse(any(item["missing"] for item in risk_fields.values()))
+
+
 if __name__ == "__main__":
     unittest.main()
