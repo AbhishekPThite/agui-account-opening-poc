@@ -3,7 +3,7 @@ import unittest
 from unittest.mock import AsyncMock, patch
 
 from langchain_core.messages import AIMessage, HumanMessage
-from graph import understand_request, route_after_setup
+from graph import understand_request, route_after_request
 
 
 class UnifiedJourneyAssistantTests(unittest.TestCase):
@@ -25,7 +25,7 @@ class UnifiedJourneyAssistantTests(unittest.TestCase):
             result = asyncio.run(understand_request(state))
 
         self.assertTrue(result["conversation_only"])
-        self.assertEqual(route_after_setup({**state, **result}), "stay")
+        self.assertEqual(route_after_request({**state, **result}), "stay")
         self.assertIsInstance(result["messages"][0], AIMessage)
         self.assertIn("confirm", result["messages"][0].content.lower())
 
