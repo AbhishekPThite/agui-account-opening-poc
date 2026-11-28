@@ -75,6 +75,43 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
             answer_journey_question_fn=answer_journey_question,
         )
 
+    actions = classify_workflow_action(
+        extracted,
+        form_submission=form_submission,
+        active_widget=active_widget,
+    )
+    if actions.joint_owner_submission:
+        validate_joint_owner_submission(extracted)
+
+    risk_assessment_requested = (
+        actions.risk_assessment_submission
+        or actions.risk_assessment_prefill
+        or actions.initial_journey_prefill
+    )
+    submitted_risk = validate_risk_assessment(
+        extracted,
+        requested=risk_assessment_requested,
+        submission=actions.risk_assessment_submission,
+    )
+    product_type_for_features = str(
+        extracted.get("account_type") or extracted.get("productType")
+        or state.get("product_type") or state.get("account_type") or ""
+    ).strip().upper()
+    should_assess_features = (
+        actions.product_features_submission
+        or actions.product_features_prefill
+        or (
+            actions.initial_journey_prefill
+            and product_type_for_features in {"BROKERAGE", "CREDIT_FACILITY"}
+        )
+    )
+    submitted_features = validate_product_features(
+        extracted,
+        product_type=product_type_for_features,
+        requested=should_assess_features,
+        submission=actions.product_features_submission,
+    )
+
     return build_state_updates(
         state,
         extracted=extracted,
