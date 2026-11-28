@@ -21,6 +21,7 @@ def build_state_updates(
     extracted: dict[str, Any],
     text: str,
     actions: WorkflowActionContext,
+    form_submission: bool,
     assistant_answer: str,
     submitted_risk: dict[str, Any],
     submitted_features: dict[str, Any],
@@ -126,10 +127,5 @@ def build_state_updates(
         "conversation_only": bool(assistant_answer),
         "dashboard_navigation": actions.dashboard_navigation,
         "requested_section": actions.requested_section,
-        "last_form_action": str(extracted.get("formId", "")) if actions.dashboard_navigation
-            or actions.setup_submitted or actions.joint_owner_submission
-            or actions.profile_confirmed or actions.profile_capture
-            or actions.profile_capture_requested or actions.beneficiary_capture
-            or actions.beneficiary_skip or actions.risk_assessment_submission
-            or actions.product_features_submission else "",
+        "last_form_action": str(extracted.get("formId", "")) if form_submission else "",
     }
