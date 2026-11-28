@@ -11,6 +11,8 @@ on:
 jobs:
   backend-regression:
     runs-on: ubuntu-latest
+    env:
+      LLM_ENABLED: "false"
     defaults:
       run:
         working-directory: backend
