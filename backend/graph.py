@@ -593,10 +593,6 @@ def build_application_review_sections(state: AccountOpeningState) -> list[dict[s
     })
     return sections
 
-def profile_has_missing(fields: list[dict[str, Any]]) -> bool:
-    return any(item.get("missing") for item in fields)
-
-
 def prepare_ui(state: AccountOpeningState) -> dict[str, Any]:
     if state.get("missing_fields"):
         ui = {
