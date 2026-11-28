@@ -279,7 +279,7 @@ The engine returns a normalized requirement list with `key`, `label`, `status` a
 Run the decision-engine unit tests from the backend directory:
 
 ```bash
-python -m unittest test_requirements_engine.py -v
+python -m unittest tests.unit.domain.test_requirements_engine -v
 ```
 
 
@@ -320,7 +320,7 @@ This increment exposes the backend model only. The Angular progress tracker and 
 Run from the backend directory:
 
 ```bash
-python -m unittest test_journey_status.py -v
+python -m unittest tests.workflow.test_journey_status -v
 ```
 
 ## Product-specific feature capture (Milestone 8D)
@@ -347,7 +347,7 @@ These are illustrative POC capture fields, not approved product terms, credit un
 Run backend tests from the backend directory:
 
 ```bash
-python -m unittest test_requirements_engine.py test_risk_assessment.py test_product_features.py -v
+python -m unittest tests.unit.domain.test_requirements_engine tests.unit.domain.test_risk_assessment tests.unit.domain.test_product_features -v
 ```
 
 Manual checks:
@@ -374,7 +374,7 @@ The field set and enumerations are assumed POC contracts. Align them with the fi
 Run the backend tests from the backend directory:
 
 ```bash
-python -m unittest test_requirements_engine.py test_risk_assessment.py -v
+python -m unittest tests.unit.domain.test_requirements_engine tests.unit.domain.test_risk_assessment -v
 ```
 
 Manual check:
@@ -421,7 +421,7 @@ This increment uses the configured LLM through the account-request extraction pa
 Run the focused backend tests from the backend directory:
 
 ```bash
-python -m unittest test_conversational_account_setup.py -v
+python -m unittest tests.workflow.test_conversational_account_setup -v
 ```
 
 Manual check:
@@ -448,7 +448,7 @@ The conversational message does **not** submit the risk assessment or mark it co
 Run the focused backend tests from the backend directory:
 
 ```bash
-python -m unittest test_risk_assessment.py -v
+python -m unittest tests.unit.domain.test_risk_assessment -v
 ```
 
 Manual check:
@@ -480,7 +480,7 @@ Conversational input does **not** submit or complete the form. The RM must revie
 Run focused backend tests from the backend directory:
 
 ```bash
-python -m unittest test_product_features.py -v
+python -m unittest tests.unit.domain.test_product_features -v
 ```
 
 Manual checks:
@@ -512,8 +512,8 @@ The generic active-form extractor is constrained to the fields and select option
 Run focused tests from the backend directory:
 
 ```bash
-python -m unittest test_unified_journey_assistant.py -v
-python -m unittest test_conversational_account_setup.py test_risk_assessment.py test_product_features.py -v
+python -m unittest tests.workflow.test_unified_journey_assistant -v
+python -m unittest tests.workflow.test_conversational_account_setup tests.unit.domain.test_risk_assessment tests.unit.domain.test_product_features -v
 ```
 
 Manual checks:
@@ -545,7 +545,7 @@ Backend regression tests cover dashboard statuses, direct section opening and th
 
 ```bash
 cd backend
-python -m unittest test_journey_status.py -v
+python -m unittest tests.workflow.test_journey_status -v
 ```
 
 The Angular dashboard navigation controls are the next increment (10A.2).
@@ -587,3 +587,25 @@ Manual verification after pulling:
 - Open Summary early and verify the dashboard explains which required sections remain incomplete.
 - Complete all required sections, open Summary, and confirm the explicit approval gate still appears before draft creation.
 
+
+
+## Repository layout (refactored)
+
+- `backend/workflow/nodes.py` contains workflow node implementations.
+- `backend/workflow/graph.py` contains LangGraph topology and routing.
+- `backend/graph.py` remains as a compatibility facade for existing imports.
+- `backend/tests/unit/domain/`, `backend/tests/unit/application/` and `backend/tests/workflow/` organize the regression suite.
+- `frontend/` is the Angular workspace (formerly `angular-test-client/`); the integration notes remain alongside it.
+
+Run the complete backend regression suite from `backend/`:
+
+```bash
+python -m unittest discover -s tests -t . -v
+```
+
+Build the Angular client from `frontend/`:
+
+```bash
+npm ci
+npm run build
+```
