@@ -5,7 +5,7 @@
     "scripts": {
         "start": "ng serve",
         "build": "ng build",
-        "test": "esbuild tests/*.test.ts --outdir=.test-dist --format=esm --platform=node --packages=external --out-extension:.js=.mjs && node --test .test-dist/*.test.mjs"
+        "test": "esbuild tests/*.test.ts --bundle --outdir=.test-dist --format=esm --platform=node --packages=external --out-extension:.js=.mjs && node --test .test-dist/*.test.mjs"
     },
     "dependencies": {
         "@angular/common": "19.2.15",
