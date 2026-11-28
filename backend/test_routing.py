@@ -2,7 +2,7 @@
 
 import unittest
 
-from graph import route_after_request, route_after_status
+from graph import route_after_request, route_after_status, route_after_approval
 
 
 class RouteAfterRequestTests(unittest.TestCase):
@@ -55,6 +55,32 @@ class RouteAfterStatusTests(unittest.TestCase):
 
     def test_missing_approval_signal_finishes(self):
         self.assertEqual(route_after_status({"ui": {"widgetId": "APPLICATION_SUMMARY"}}), "finish")
+
+class RouteAfterApprovalTests(unittest.TestCase):
+    def test_approved_application_routes_to_draft_creation(self):
+        self.assertEqual(
+            route_after_approval({"approval_status": "APPROVED", "review_action": "APPROVE"}),
+            "create_draft",
+        )
+
+    def test_edited_application_routes_to_revalidation(self):
+        self.assertEqual(
+            route_after_approval({"approval_status": "PENDING", "review_action": "EDIT"}),
+            "revalidate",
+        )
+
+    def test_rejected_application_finishes(self):
+        self.assertEqual(
+            route_after_approval({"approval_status": "REJECTED", "review_action": "REJECT"}),
+            "finish",
+        )
+
+    def test_pending_without_edit_action_finishes(self):
+        self.assertEqual(
+            route_after_approval({"approval_status": "PENDING", "review_action": ""}),
+            "finish",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
