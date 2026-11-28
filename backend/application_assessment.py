@@ -40,7 +40,14 @@ def assess_application(state: dict[str, Any]) -> dict[str, Any]:
             account_missing.append("jointOwnerTaxResidency")
 
     profile_assessment = state.get("profile_assessment", {})
-    profile_missing = bool(profile_assessment.get("actionRequired"))
+    profile_missing_fields = list(profile_assessment.get("actionRequired", []))
+    for group in profile_assessment.get("sections", []):
+        for field in group.get("fields", []):
+            if field.get("missing"):
+                missing_identifier = field.get("name") or field.get("label")
+                if missing_identifier and missing_identifier not in profile_missing_fields:
+                    profile_missing_fields.append(missing_identifier)
+    profile_missing = bool(profile_missing_fields)
     profile_status = (
         "ACTION_REQUIRED" if profile_missing else
         "COMPLETED" if profile_assessment else
@@ -88,7 +95,7 @@ def assess_application(state: dict[str, Any]) -> dict[str, Any]:
         "statuses": statuses,
         "missing_fields": {
             "ACCOUNT_DETAILS": account_missing,
-            "PROFILE": ["profile"] if profile_missing else [],
+            "PROFILE": profile_missing_fields,
             "RISK_PROFILE": risk_missing,
             "FEATURES": feature_missing,
         },
