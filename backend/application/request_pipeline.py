@@ -4,13 +4,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from domain_validation import (
+from ..domain.validation import (
     validate_joint_owner_submission,
     validate_risk_assessment,
     validate_product_features,
 )
-from workflow_actions import WorkflowActionContext, classify_workflow_action
-from workflow_state import AccountOpeningState
+from .workflow_actions import WorkflowActionContext, classify_workflow_action
+from ..workflow.state import AccountOpeningState
 
 
 @dataclass(frozen=True)

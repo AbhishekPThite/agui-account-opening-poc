@@ -1,6 +1,6 @@
 import unittest
 
-from application_assessment import assess_application
+from domain.assessment import assess_application
 
 
 class ApplicationAssessmentTests(unittest.TestCase):

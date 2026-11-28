@@ -5,8 +5,8 @@ from typing import Any
 
 from langchain_core.messages import AIMessage
 
-from workflow_actions import WorkflowActionContext
-from workflow_state import AccountOpeningState
+from .workflow_actions import WorkflowActionContext
+from ..workflow.state import AccountOpeningState
 
 
 def _extract_value(pattern: str, text: str, default: str = "") -> str:

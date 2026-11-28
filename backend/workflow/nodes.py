@@ -7,7 +7,7 @@ from typing import Any
 
 from langchain_core.messages import AnyMessage, HumanMessage, AIMessage
 from langgraph.types import interrupt
-from model_client import (
+from ..integrations.llm.model_client import (
     extract_account_request,
     extract_risk_assessment,
     extract_product_features,
@@ -15,12 +15,12 @@ from model_client import (
     answer_journey_question,
     model,
 )
-from requirements_engine import build_registration_requirements, build_product_feature_requirements
-from workflow_state import AccountOpeningState
-from ui_projection import build_journey_status, build_application_review_sections
-from request_extraction import extract_request_data
-from request_pipeline import prepare_validated_request
-from state_updates import build_state_updates
+from ..domain.requirements import build_registration_requirements, build_product_feature_requirements
+from .state import AccountOpeningState
+from ..presentation.ui_projection import build_journey_status, build_application_review_sections
+from ..application.request_extraction import extract_request_data
+from ..application.request_pipeline import prepare_validated_request
+from ..application.state_updates import build_state_updates
 
 
 EDITABLE_FIELDS = {

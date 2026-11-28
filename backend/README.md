@@ -10,7 +10,7 @@
 - `infrastructure/`: checkpointer setup and lifecycle.
 - `tests/unit/domain/`, `tests/unit/application/`, `tests/workflow/`: regression tests by responsibility.
 
-The original root module names remain as small compatibility shims. This preserves existing imports used by the API entry point, tests and local scripts while implementation code lives in its owning package.
+There are no root-level compatibility shims: application code and tests import modules from their owning packages. Use package-qualified imports (for example, `from integrations.llm.model_client import ...` from `main.py`, or relative imports inside packages).
 
 Run the complete regression suite from this directory:
 

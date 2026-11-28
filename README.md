@@ -593,7 +593,7 @@ Manual verification after pulling:
 
 - `backend/workflow/nodes.py` contains workflow node implementations.
 - `backend/workflow/graph.py` contains LangGraph topology and routing.
-- `backend/graph.py` remains as a compatibility facade for existing imports.
+- `backend/workflow/state.py` defines the shared LangGraph state contract; application code and tests import workflow nodes and routing directly from their owning modules.
 - `backend/tests/unit/domain/`, `backend/tests/unit/application/` and `backend/tests/workflow/` organize the regression suite.
 - `frontend/` is the Angular workspace (formerly `angular-test-client/`); the integration notes remain alongside it.
 

@@ -1,6 +1,6 @@
 import unittest
 
-from workflow_actions import classify_workflow_action
+from application.workflow_actions import classify_workflow_action
 
 
 class WorkflowActionClassificationTests(unittest.TestCase):

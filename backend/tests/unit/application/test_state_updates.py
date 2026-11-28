@@ -1,7 +1,7 @@
 import unittest
 
-from workflow_actions import classify_workflow_action
-from state_updates import build_state_updates
+from application.workflow_actions import classify_workflow_action
+from application.state_updates import build_state_updates
 
 
 class StateUpdateProjectionTests(unittest.TestCase):

@@ -1,6 +1,6 @@
 import unittest
 
-from requirements_engine import build_registration_requirements
+from domain.requirements import build_registration_requirements
 
 
 class RegistrationRequirementsTests(unittest.TestCase):

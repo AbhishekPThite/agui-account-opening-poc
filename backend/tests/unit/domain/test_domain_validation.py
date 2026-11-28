@@ -1,6 +1,6 @@
 import unittest
 
-from domain_validation import (
+from domain.validation import (
     validate_joint_owner_submission,
     validate_product_features,
     validate_risk_assessment,

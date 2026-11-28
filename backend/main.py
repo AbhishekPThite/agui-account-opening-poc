@@ -7,13 +7,13 @@ from ag_ui_langgraph import LangGraphAgent, add_langgraph_fastapi_endpoint
 
 logging.basicConfig(level=logging.INFO)
 
-from checkpointer import (
+from infrastructure.checkpointer import (
     checkpointer_backend,
     close_checkpointer,
     setup_checkpointer,
 )
-from graph import build_graph
-from enterprise_api import JavaExperienceApi
+from workflow.graph import build_graph
+from integrations.java.enterprise_api import JavaExperienceApi
 
 
 @asynccontextmanager

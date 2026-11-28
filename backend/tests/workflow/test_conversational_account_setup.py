@@ -3,20 +3,20 @@ import unittest
 from unittest.mock import AsyncMock, patch
 
 from langchain_core.messages import HumanMessage
-from graph import understand_request
-from model_client import extract_account_request
+from workflow.nodes import understand_request
+from integrations.llm.model_client import extract_account_request
 
 
 class ConversationalAccountSetupTests(unittest.TestCase):
     def run_extraction(self, message, extracted, existing_state=None):
         state = dict(existing_state or {})
         state["messages"] = [HumanMessage(content=message)]
-        with patch("graph.model", object()), patch(
-            "graph.extract_account_request", new_callable=AsyncMock
+        with patch("workflow.nodes.model", object()), patch(
+            "workflow.nodes.extract_account_request", new_callable=AsyncMock
         ) as extractor, patch(
-            "graph.extract_risk_assessment", new_callable=AsyncMock, return_value={}
+            "workflow.nodes.extract_risk_assessment", new_callable=AsyncMock, return_value={}
         ), patch(
-            "graph.extract_product_features", new_callable=AsyncMock, return_value={}
+            "workflow.nodes.extract_product_features", new_callable=AsyncMock, return_value={}
         ):
             extractor.return_value = extracted
             return asyncio.run(understand_request(state))
@@ -54,7 +54,7 @@ class ConversationalAccountSetupTests(unittest.TestCase):
         self.assertEqual(result["margin_option"], "MARGIN")
 
     def test_account_extractor_rejects_unsupported_margin_enum(self):
-        with patch("model_client.extract_structured_data", new_callable=AsyncMock) as extractor:
+        with patch("integrations.llm.model_client.extract_structured_data", new_callable=AsyncMock) as extractor:
             extractor.return_value = {
                 "client_id": "",
                 "account_type": "",

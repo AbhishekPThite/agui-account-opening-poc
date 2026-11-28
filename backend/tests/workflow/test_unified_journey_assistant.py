@@ -3,7 +3,8 @@ import unittest
 from unittest.mock import AsyncMock, patch
 
 from langchain_core.messages import AIMessage, HumanMessage
-from graph import understand_request, route_after_request
+from workflow.nodes import understand_request
+from workflow.graph import route_after_request
 
 
 class UnifiedJourneyAssistantTests(unittest.TestCase):
@@ -19,7 +20,7 @@ class UnifiedJourneyAssistantTests(unittest.TestCase):
             "profile_confirmed": False,
         }
         with patch(
-            "graph.answer_journey_question",
+            "workflow.nodes.answer_journey_question",
             new=AsyncMock(return_value="Review the populated details and confirm they are accurate."),
         ):
             result = asyncio.run(understand_request(state))
@@ -42,8 +43,8 @@ class UnifiedJourneyAssistantTests(unittest.TestCase):
             },
             "joint_owner_tax_residency": "Singapore",
         }
-        with patch("graph.model", object()), patch(
-            "graph.extract_active_form_fields", new=AsyncMock(return_value={"jointOwnerName": "Jordan Lee", "jointOwnerTaxResidency": ""})
+        with patch("workflow.nodes.model", object()), patch(
+            "workflow.nodes.extract_active_form_fields", new=AsyncMock(return_value={"jointOwnerName": "Jordan Lee", "jointOwnerTaxResidency": ""})
         ):
             result = asyncio.run(understand_request(state))
 
@@ -61,11 +62,11 @@ class UnifiedJourneyAssistantTests(unittest.TestCase):
             ))],
             "ui": {},
         }
-        with patch("graph.model", object()), patch(
-            "graph.extract_account_request",
+        with patch("workflow.nodes.model", object()), patch(
+            "workflow.nodes.extract_account_request",
             new=AsyncMock(return_value={"client_id": "C12345", "account_type": "BROKERAGE"}),
         ), patch(
-            "graph.extract_risk_assessment",
+            "workflow.nodes.extract_risk_assessment",
             new=AsyncMock(return_value={
                 "investmentObjectives": "GROWTH, INCOME",
                 "investmentTimeHorizon": "5_TO_10_YEARS",
@@ -73,7 +74,7 @@ class UnifiedJourneyAssistantTests(unittest.TestCase):
                 "riskTolerance": "MODERATE",
             }),
         ), patch(
-            "graph.extract_product_features",
+            "workflow.nodes.extract_product_features",
             new=AsyncMock(return_value={
                 "cashSweepVehicle": "BDP",
                 "optionsTradingElection": "YES",
@@ -107,10 +108,10 @@ class UnifiedJourneyAssistantTests(unittest.TestCase):
             "product_features": {"requestedCreditLimit": 250000.0},
             "product_features_completed": False,
         }
-        with patch("graph.model", object()), patch(
-            "graph.extract_product_features", new=AsyncMock(return_value={})
+        with patch("workflow.nodes.model", object()), patch(
+            "workflow.nodes.extract_product_features", new=AsyncMock(return_value={})
         ), patch(
-            "graph.answer_journey_question",
+            "workflow.nodes.answer_journey_question",
             new=AsyncMock(return_value="No. This form captures a request; it does not approve a facility."),
         ):
             result = asyncio.run(understand_request(state))

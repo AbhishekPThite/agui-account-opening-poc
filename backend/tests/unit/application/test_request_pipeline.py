@@ -1,6 +1,6 @@
 import unittest
 
-from request_pipeline import prepare_validated_request
+from application.request_pipeline import prepare_validated_request
 
 
 class RequestPipelineTests(unittest.TestCase):

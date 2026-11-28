@@ -2,7 +2,7 @@
 
 import unittest
 
-from graph import route_after_request, route_after_status, route_after_approval
+from workflow.graph import route_after_request, route_after_status, route_after_approval
 
 
 class RouteAfterRequestTests(unittest.TestCase):

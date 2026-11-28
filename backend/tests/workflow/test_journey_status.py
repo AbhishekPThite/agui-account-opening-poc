@@ -1,7 +1,7 @@
 import unittest
 
-from graph import prepare_application_dashboard, open_dashboard_section
-from ui_projection import build_journey_status, build_application_review_sections
+from workflow.nodes import prepare_application_dashboard, open_dashboard_section
+from presentation.ui_projection import build_journey_status, build_application_review_sections
 
 
 class JourneyStatusTests(unittest.TestCase):

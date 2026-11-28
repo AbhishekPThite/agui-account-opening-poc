@@ -3,9 +3,20 @@ from __future__ import annotations
 from typing import Any
 
 from langgraph.graph import StateGraph, START, END
-from checkpointer import checkpointer
-from workflow_state import AccountOpeningState
-from .nodes import *  # Re-export node functions for a compact graph definition.
+from ..infrastructure.checkpointer import checkpointer
+from .state import AccountOpeningState
+from .nodes import (
+    assess_client_profile,
+    await_human_approval,
+    create_draft,
+    open_dashboard_section,
+    prepare_application_dashboard,
+    prepare_joint_owner_capture,
+    prepare_profile_capture,
+    publish_journey_status,
+    retrieve_client,
+    understand_request,
+)
 
 def route_after_request(state: AccountOpeningState) -> str:
     if state.get("conversation_only"):

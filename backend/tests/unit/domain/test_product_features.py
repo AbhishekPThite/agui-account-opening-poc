@@ -5,8 +5,8 @@ from unittest.mock import AsyncMock, patch
 
 from langchain_core.messages import HumanMessage
 from graph import understand_request, prepare_product_features
-from requirements_engine import build_product_feature_requirements
-from model_client import extract_product_features
+from domain.requirements import build_product_feature_requirements
+from integrations.llm.model_client import extract_product_features
 
 
 class ProductFeatureTests(unittest.TestCase):
@@ -100,7 +100,7 @@ class ProductFeatureTests(unittest.TestCase):
             "collateralType": "UNSUPPORTED",
             "facilityPurpose": "LIQUIDITY",
         }
-        with patch("model_client.extract_structured_data", new=AsyncMock(return_value=raw)):
+        with patch("integrations.llm.model_client.extract_structured_data", new=AsyncMock(return_value=raw)):
             result = asyncio.run(extract_product_features(
                 "Use unsupported collateral and request a negative amount.",
                 product_type="CREDIT_FACILITY",

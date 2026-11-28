@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from requirements_engine import build_product_feature_requirements
+from .requirements import build_product_feature_requirements
 
 
 SUPPORTED_PRODUCTS = {"BROKERAGE", "CREDIT_FACILITY"}
