@@ -297,7 +297,8 @@ def prepare_account_setup(state: AccountOpeningState) -> dict[str, Any]:
             {"name": "registrationType", "label": "Registration type", "type": "select", "required": True, "options": ["INDIVIDUAL", "INDIVIDUAL_TOD", "JOINT", "JOINT_TOD"], "defaultValue": state.get("ownership", "INDIVIDUAL")},
             {"name": "accountNickname", "label": "Account nickname", "type": "text", "required": True, "placeholder": "Account nickname", "defaultValue": state.get("account_nickname") or "Brokerage 1"},
             {"name": "marginOption", "label": "Margin option", "type": "select", "required": True, "options": ["NONE", "MARGIN"], "defaultValue": state.get("margin_option", "NONE")},
-        ],        "data": {"clientId": state.get("client_id", "C12345")}
+        ],
+        "data": {"clientId": state.get("client_id", "C12345")}
     }
     return {"ui": ui, "messages": [AIMessage(content="Let's confirm the account setup. I'll retrieve the existing client profile after you continue.")]}
 
@@ -596,6 +597,7 @@ def build_application_review_sections(state: AccountOpeningState) -> list[dict[s
     sections.append({"id": "RISK_PROFILE", "label": "Risk Assessment",
                      "status": "ACTION_REQUIRED" if any(x["missing"] for x in risk_fields) else "COMPLETED",
                      "fields": risk_fields})
+
     feature_schema = build_product_feature_requirements(product_type) if product_type in {"BROKERAGE", "CREDIT_FACILITY"} else {"fields": []}
     feature_fields = [
         field(definition["label"],
@@ -896,3 +898,51 @@ def build_graph(
     workflow.add_node("create_draft", create_draft_node)
 
     workflow.add_edge(START, "understand_request")
+    workflow.add_conditional_edges(
+        "understand_request", route_after_request,
+        {"show_setup": "prepare_account_setup", "retrieve_client": "retrieve_client",
+         "dashboard": "prepare_application_dashboard", "open_section": "open_dashboard_section",
+         "continue_journey": "prepare_application_dashboard", "capture_profile": "prepare_profile_capture",
+         "joint_owner": "prepare_joint_owner_capture", "stay": END},
+    )
+    workflow.add_edge("prepare_account_setup", "publish_journey_status")
+    workflow.add_edge("prepare_joint_owner_capture", "publish_journey_status")
+    workflow.add_edge("retrieve_client", "assess_client_profile")
+    workflow.add_edge("assess_client_profile", "prepare_application_dashboard")
+    workflow.add_edge("prepare_application_dashboard", END)
+    workflow.add_edge("open_dashboard_section", "publish_journey_status")
+    workflow.add_edge("prepare_profile_assessment", "publish_journey_status")
+    workflow.add_edge("prepare_profile_capture", "publish_journey_status")
+    def route_after_data_requirements(state: AccountOpeningState) -> str:
+        if state.get("missing_fields"):
+            return "joint_owner"
+        if not state.get("beneficiary_capture_completed"):
+            return "beneficiary"
+        if not state.get("risk_assessment_completed"):
+            return "risk_assessment"
+        if not state.get("product_features_completed"):
+            return "product_features"
+        return "review"
+
+    workflow.add_conditional_edges(
+        "determine_requirements", route_after_data_requirements,
+        {"joint_owner": "prepare_ui", "beneficiary": "prepare_beneficiary_capture", "risk_assessment": "prepare_risk_assessment", "product_features": "prepare_product_features", "review": "prepare_ui"},
+    )
+    workflow.add_edge("prepare_beneficiary_capture", "publish_journey_status")
+    workflow.add_edge("prepare_risk_assessment", "publish_journey_status")
+    workflow.add_edge("prepare_product_features", "publish_journey_status")
+    workflow.add_edge("prepare_ui", "publish_journey_status")
+    def route_after_status(state: AccountOpeningState) -> str:
+        return "await_approval" if state.get("ui", {}).get("widgetId") == "APPLICATION_SUMMARY" else "finish"
+
+    workflow.add_conditional_edges(
+        "publish_journey_status", route_after_status,
+        {"finish": END, "await_approval": "await_approval"},
+    )
+    workflow.add_conditional_edges(
+        "await_approval", route_after_approval,
+        {"create_draft": "create_draft", "revalidate": "retrieve_client", "finish": END},
+    )
+    workflow.add_edge("create_draft", "publish_journey_status")
+    saver = checkpointer if checkpointer_override is None else checkpointer_override
+    return workflow.compile(checkpointer=saver)
