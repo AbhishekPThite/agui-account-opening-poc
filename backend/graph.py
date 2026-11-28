@@ -20,12 +20,7 @@ from model_client import (
 from requirements_engine import build_registration_requirements, build_product_feature_requirements
 from workflow_state import AccountOpeningState
 from request_extraction import extract_request_data
-from domain_validation import (
-    validate_joint_owner_submission,
-    validate_risk_assessment,
-    validate_product_features,
-)
-from workflow_actions import classify_workflow_action
+from request_pipeline import prepare_validated_request
 from state_updates import build_state_updates
 
 
@@ -53,17 +48,11 @@ def extract_value(pattern: str, text: str, default: str = "") -> str:
 
 async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
     text = latest_user_text(state.get("messages", []))
-    extracted: dict[str, Any] = {}
     form_submission = text.startswith("POC_FORM_SUBMISSION:")
-    if form_submission:
-        try:
-            extracted = json.loads(text.split(":", 1)[1])
-        except (json.JSONDecodeError, IndexError):
-            raise ValueError("The submitted account setup form could not be read.")
-    active_widget = state.get("ui", {}).get("widgetId", "")
-    active_ui = state.get("ui", {})
+    extracted = parse_form_submission(text) if form_submission else {}
     assistant_answer = ""
-    if not form_submission and text:
+
+    if text and not form_submission:
         extracted, assistant_answer = await extract_request_data(
             text,
             state,
@@ -75,53 +64,33 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
             answer_journey_question_fn=answer_journey_question,
         )
 
-    actions = classify_workflow_action(
+    request_context = prepare_validated_request(
+        state,
         extracted,
         form_submission=form_submission,
-        active_widget=active_widget,
+        active_widget=str(state.get("ui", {}).get("widgetId", "")),
     )
-    if actions.joint_owner_submission:
-        validate_joint_owner_submission(extracted)
-
-    risk_assessment_requested = (
-        actions.risk_assessment_submission
-        or actions.risk_assessment_prefill
-        or actions.initial_journey_prefill
-    )
-    submitted_risk = validate_risk_assessment(
-        extracted,
-        requested=risk_assessment_requested,
-        submission=actions.risk_assessment_submission,
-    )
-    product_type_for_features = str(
-        extracted.get("account_type") or extracted.get("productType")
-        or state.get("product_type") or state.get("account_type") or ""
-    ).strip().upper()
-    should_assess_features = (
-        actions.product_features_submission
-        or actions.product_features_prefill
-        or (
-            actions.initial_journey_prefill
-            and product_type_for_features in {"BROKERAGE", "CREDIT_FACILITY"}
-        )
-    )
-    submitted_features = validate_product_features(
-        extracted,
-        product_type=product_type_for_features,
-        requested=should_assess_features,
-        submission=actions.product_features_submission,
-    )
-
     return build_state_updates(
         state,
         extracted=extracted,
         text=text,
-        actions=actions,
+        actions=request_context.actions,
         form_submission=form_submission,
         assistant_answer=assistant_answer,
-        submitted_risk=submitted_risk,
-        submitted_features=submitted_features,
+        submitted_risk=request_context.risk_assessment,
+        submitted_features=request_context.product_features,
     )
+
+
+def parse_form_submission(text: str) -> dict[str, Any]:
+    """Parse the structured payload emitted by the Angular form client."""
+    try:
+        payload = json.loads(text.split(":", 1)[1])
+    except (json.JSONDecodeError, IndexError) as exc:
+        raise ValueError("The submitted account setup form could not be read.") from exc
+    if not isinstance(payload, dict):
+        raise ValueError("The submitted account setup form must be a JSON object.")
+    return payload
 
 
 def build_journey_status(state: AccountOpeningState) -> dict[str, Any]:
