@@ -180,6 +180,7 @@ class JourneyStatusTests(unittest.TestCase):
     def test_draft_confirmation_completes_summary_stage(self):
         result = build_journey_status({
             "ui": {"widgetId": "DRAFT_CONFIRMATION"},
+            "application": {"applicationId": "APP-123", "status": "DRAFT"},
             "profile_assessment": {"actionRequired": []},
             "client_profile": {"investmentProfile": {"investmentObjectives": ["GROWTH"], "riskTolerance": "MODERATE"}},
             "product_type": "BROKERAGE",
