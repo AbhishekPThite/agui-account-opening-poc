@@ -80,6 +80,7 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
         extracted=extracted,
         text=text,
         actions=actions,
+        form_submission=form_submission,
         assistant_answer=assistant_answer,
         submitted_risk=submitted_risk,
         submitted_features=submitted_features,
