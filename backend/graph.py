@@ -26,6 +26,7 @@ from domain_validation import (
     validate_product_features,
 )
 from workflow_actions import classify_workflow_action
+from state_updates import build_state_updates
 
 
 EDITABLE_FIELDS = {
@@ -74,148 +75,15 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
             answer_journey_question_fn=answer_journey_question,
         )
 
-    client_id = extracted.get("client_id") or extracted.get("clientId") or extract_value(
-        r"\bclient\s+([A-Z0-9-]+)", text, state.get("client_id", "C12345")
+    return build_state_updates(
+        state,
+        extracted=extracted,
+        text=text,
+        actions=actions,
+        assistant_answer=assistant_answer,
+        submitted_risk=submitted_risk,
+        submitted_features=submitted_features,
     )
-
-    # The LLM interprets natural-language intent. Python only validates the
-    # returned domain values; structured UI submissions are already explicit.
-    allowed_products = {"BROKERAGE", "CREDIT_FACILITY"}
-    allowed_registrations = {"INDIVIDUAL", "INDIVIDUAL_TOD", "JOINT", "JOINT_TOD"}
-    raw_product = str(
-        extracted.get("productType") or extracted.get("account_type") or ""
-    ).strip().upper()
-    raw_registration = str(
-        extracted.get("registrationType") or extracted.get("ownership") or ""
-    ).strip().upper()
-
-    product_type = (
-        raw_product if raw_product in allowed_products
-        else state.get("product_type", "")
-    )
-    ownership = (
-        raw_registration if raw_registration in allowed_registrations
-        else state.get("ownership", "INDIVIDUAL")
-    )
-    owner = extracted.get("joint_owner_name") or extract_value(
-        r"(?:joint owner|co-owner)(?: name)?\s*(?:is|:|to)\s*([A-Za-z][A-Za-z .'-]+?)(?:,|;|$)",
-        text, state.get("joint_owner_name", "")
-    )
-    tax = extracted.get("joint_owner_tax_residency") or extract_value(
-        r"(?:tax residency|residency)\s*(?:is|:|to)\s*([A-Za-z][A-Za-z .'-]+?)(?:,|;|$)",
-        text, state.get("joint_owner_tax_residency", "")
-    )
-    actions = classify_workflow_action(
-        extracted,
-        form_submission=form_submission,
-        active_widget=active_widget,
-    )
-    dashboard_navigation = actions.dashboard_navigation
-    requested_section = actions.requested_section
-    setup_submitted = actions.setup_submitted
-    joint_owner_submission = actions.joint_owner_submission
-    if joint_owner_submission:
-        validate_joint_owner_submission(extracted)
-    profile_confirmed = actions.profile_confirmed
-    profile_capture = actions.profile_capture
-    profile_capture_requested = actions.profile_capture_requested
-    beneficiary_capture = actions.beneficiary_capture
-    beneficiary_prefill = actions.beneficiary_prefill
-    profile_data_prefill = actions.profile_data_prefill
-    beneficiary_skip = actions.beneficiary_skip
-    risk_assessment_submission = actions.risk_assessment_submission
-    risk_assessment_prefill = actions.risk_assessment_prefill
-    initial_journey_prefill = actions.initial_journey_prefill
-    product_features_submission = actions.product_features_submission
-    product_features_prefill = actions.product_features_prefill
-    risk_assessment_requested = (
-        risk_assessment_submission or risk_assessment_prefill or initial_journey_prefill
-    )
-    submitted_risk = validate_risk_assessment(
-        extracted,
-        requested=risk_assessment_requested,
-        submission=risk_assessment_submission,
-    )
-    product_type_for_features = str(
-        extracted.get("account_type") or extracted.get("productType")
-        or state.get("product_type") or state.get("account_type") or ""
-    ).strip().upper()
-    should_assess_features = (
-        product_features_submission
-        or product_features_prefill
-        or (initial_journey_prefill and product_type_for_features in {"BROKERAGE", "CREDIT_FACILITY"})
-    )
-    submitted_features = validate_product_features(
-        extracted,
-        product_type=product_type_for_features,
-        requested=should_assess_features,
-        submission=product_features_submission,
-    )
-    beneficiary_values = {
-        key: str(extracted.get(key, "")).strip()
-        for key in ("beneficiaryFullName", "beneficiaryRelationship", "beneficiaryDateOfBirth")
-        if str(extracted.get(key, "")).strip()
-    } if (beneficiary_capture or beneficiary_prefill) else {}
-    captured_values = {
-        str(key): value for key, value in extracted.items()
-        if key not in {"formId", "clientId"} and value is not None and str(value).strip() != ""
-    } if (profile_capture or profile_data_prefill) else {}
-    explicitly_confirmed_values = {
-        item["field"]: item["value"]
-        for item in state.get("profile_assessment", {}).get("confirmationRequired", [])
-        if item.get("field")
-    } if profile_confirmed else {}
-    profile_values_to_merge = {**explicitly_confirmed_values, **captured_values}
-    selected_product = str(extracted.get("productType") or product_type).upper()
-    selected_registration = str(extracted.get("registrationType") or ownership).upper()
-    return {
-        "client_id": str(extracted.get("clientId") or client_id),
-        "account_type": selected_product,
-        "product_type": selected_product,
-        "ownership": selected_registration,
-        "account_nickname": str(
-            extracted.get("account_nickname")
-            or extracted.get("accountNickname")
-            or state.get("account_nickname")
-            or "Brokerage 1"
-        ),
-        "margin_option": (
-            str(extracted.get("margin_option") or extracted.get("marginOption")).upper()
-            if str(extracted.get("margin_option") or extracted.get("marginOption") or "").upper() in {"NONE", "MARGIN"}
-            else state.get("margin_option", "NONE")
-        ),
-        "account_setup_complete": setup_submitted or state.get("account_setup_complete", False),
-        "profile_confirmed": profile_confirmed or state.get("profile_confirmed", False),
-        "profile_capture_requested": profile_capture_requested,
-        "profile_data_submitted": profile_capture or state.get("profile_data_submitted", False),
-        "confirmed_profile_data": {
-            **state.get("confirmed_profile_data", {}),
-            **profile_values_to_merge,
-        },
-        "application_data": {
-            **state.get("application_data", {}),
-            **profile_values_to_merge,
-        },
-        "beneficiary_data": {
-            **state.get("beneficiary_data", {}),
-            **beneficiary_values,
-        },
-        "beneficiary_capture_completed": (
-            beneficiary_capture or beneficiary_skip
-            or state.get("beneficiary_capture_completed", False)
-        ),
-        "risk_assessment": {**state.get("risk_assessment", {}), **submitted_risk},
-        "risk_assessment_completed": risk_assessment_submission or state.get("risk_assessment_completed", False),
-        "product_features": {**state.get("product_features", {}), **submitted_features},
-        "product_features_completed": product_features_submission or state.get("product_features_completed", False),
-        "joint_owner_name": str(extracted.get("jointOwnerName") or owner or state.get("joint_owner_name", "")),
-        "joint_owner_tax_residency": str(extracted.get("jointOwnerTaxResidency") or tax or state.get("joint_owner_tax_residency", "")),
-        "messages": [AIMessage(content=assistant_answer)] if assistant_answer else [],
-        "conversation_only": bool(assistant_answer),
-        "dashboard_navigation": dashboard_navigation,
-        "requested_section": requested_section,
-        "last_form_action": str(extracted.get("formId", "")) if form_submission else "",
-    }
 
 
 def build_journey_status(state: AccountOpeningState) -> dict[str, Any]:
