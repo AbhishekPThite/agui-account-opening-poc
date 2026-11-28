@@ -23,6 +23,7 @@ class AccountOpeningState(TypedDict, total=False):
     application: dict[str, Any]
     missing_fields: list[str]
     approval_status: str
+    approval_requested: bool
     review_action: str
     review_revision: int
     draft_idempotency_key: str
