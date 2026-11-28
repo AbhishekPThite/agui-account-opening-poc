@@ -1,12 +1,18 @@
 # Backend layout
 
-- Root modules: FastAPI entry point and stable compatibility imports.
-- `workflow/`: LangGraph node implementations (`nodes.py`) and graph topology/routing (`graph.py`).
-- `tests/unit/domain/`: domain validation, requirements, assessment and product/risk rules.
-- `tests/unit/application/`: request pipeline, workflow actions and state projection.
-- `tests/workflow/`: graph routing, journey status and end-to-end conversational workflow behavior.
+- `main.py`: FastAPI application and AG-UI endpoint lifecycle.
+- `workflow/`: LangGraph state contract, node implementations and graph topology.
+- `application/`: request extraction/classification, workflow actions and state-update projection.
+- `domain/`: deterministic validation, application assessment and product requirements.
+- `presentation/`: projection of domain/workflow state into the Angular widget contract.
+- `integrations/llm/`: model client and extraction/assessment prompts.
+- `integrations/java/`: Java Experience API adapter.
+- `infrastructure/`: checkpointer setup and lifecycle.
+- `tests/unit/domain/`, `tests/unit/application/`, `tests/workflow/`: regression tests by responsibility.
 
-Run the regression suite from this directory:
+The original root module names remain as small compatibility shims. This preserves existing imports used by the API entry point, tests and local scripts while implementation code lives in its owning package.
+
+Run the complete regression suite from this directory:
 
 ```bash
 python -m unittest discover -s tests -t . -v
@@ -17,5 +23,3 @@ Or, if pytest is installed:
 ```bash
 pytest -q
 ```
-
-The root-level `graph.py` remains a compatibility facade so existing imports and API wiring continue to work.
