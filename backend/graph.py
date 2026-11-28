@@ -194,11 +194,18 @@ async def understand_request(state: AccountOpeningState) -> dict[str, Any]:
         if not submitted_risk["investmentObjectives"] or invalid_risk:
             raise ValueError("Risk assessment contains invalid values: " + ", ".join(invalid_risk or ["investmentObjectives"]))
     submitted_features: dict[str, Any] = {}
-    if product_features_submission or product_features_prefill or initial_journey_prefill:
-        product_type_for_features = str(
-            extracted.get("account_type") or extracted.get("productType")
-            or state.get("product_type") or state.get("account_type") or ""
-        ).upper()
+    product_type_for_features = str(
+        extracted.get("account_type") or extracted.get("productType")
+        or state.get("product_type") or state.get("account_type") or ""
+    ).strip().upper()
+    should_assess_features = (
+        product_features_submission
+        or product_features_prefill
+        or (initial_journey_prefill and product_type_for_features in {"BROKERAGE", "CREDIT_FACILITY"})
+    )
+    if should_assess_features:
+        if product_type_for_features not in {"BROKERAGE", "CREDIT_FACILITY"}:
+            raise ValueError("Select a supported product type before capturing product features.")
         feature_schema = build_product_feature_requirements(product_type_for_features)
         feature_fields = feature_schema["fields"]
         for field in feature_fields:
