@@ -646,7 +646,7 @@ def prepare_ui(state: AccountOpeningState) -> dict[str, Any]:
             f"I found client {state['client_profile']['displayName']} ({state['client_id']}). "
             f"The client profile reports KYC status {state['client_profile'].get('kycStatus', 'UNKNOWN')}. Please provide the joint owner's name and tax residency."
         )
-        return {"ui": ui, "approval_status": "", "messages": [AIMessage(content=message)]}
+        return {"ui": ui, "approval_status": "", "approval_requested": False, "messages": [AIMessage(content=message)]}
 
     profile = state.get("client_profile", {})
     revision = int(state.get("review_revision", 0)) + 1
@@ -685,6 +685,7 @@ def prepare_ui(state: AccountOpeningState) -> dict[str, Any]:
     return {
         "ui": ui,
         "approval_status": "PENDING",
+        "approval_requested": True,
         "review_action": "",
         "review_revision": revision,
         "draft_idempotency_key": uuid.uuid4().hex,
@@ -769,15 +770,20 @@ async def await_human_approval(state: AccountOpeningState) -> dict[str, Any]:
     if isinstance(decision, dict) and decision.get("action") == "APPROVE" and decision.get("approved") is True:
         return {
             "approval_status": "APPROVED",
+            "approval_requested": False,
             "review_action": "APPROVE",
             "messages": [AIMessage(content="Application review confirmed. Sending the approved application to the Draft Application API.")],
         }
 
     if isinstance(decision, dict) and decision.get("action") == "EDIT":
-        return await apply_review_edit(state, decision)
+        return {
+            **(await apply_review_edit(state, decision)),
+            "approval_requested": False,
+        }
 
     return {
         "approval_status": "REJECTED",
+        "approval_requested": False,
         "review_action": "REJECT",
         "ui": {
             "mode": "ALERT",
@@ -855,6 +861,11 @@ async def create_draft(
         "messages": [AIMessage(content=logger_message)],
     }
 
+def route_after_status(state: AccountOpeningState) -> str:
+    """Route on explicit workflow intent, never on a presentation widget ID."""
+    return "await_approval" if state.get("approval_requested") else "finish"
+
+
 def route_after_approval(state: AccountOpeningState) -> str:
     if state.get("approval_status") == "APPROVED":
         return "create_draft"
@@ -905,9 +916,6 @@ def build_graph(
     workflow.add_edge("prepare_application_dashboard", END)
     workflow.add_edge("open_dashboard_section", "publish_journey_status")
     workflow.add_edge("prepare_profile_capture", "publish_journey_status")
-    def route_after_status(state: AccountOpeningState) -> str:
-        return "await_approval" if state.get("ui", {}).get("widgetId") == "APPLICATION_SUMMARY" else "finish"
-
     workflow.add_conditional_edges(
         "publish_journey_status", route_after_status,
         {"finish": END, "await_approval": "await_approval"},
